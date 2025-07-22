@@ -1,0 +1,142 @@
+body {
+    background: linear-gradient(135deg, #121a12 0%, #121710 100%);
+    color: #ced5ce;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+#game-container {
+    max-width: 650px;
+    margin: 40px auto;
+    background: rgba(55, 146, 63, 0.97);
+    padding: 28px;
+    border-radius: 16px;
+    box-shadow: 0 0 24px #35ac35;
+    border: 2px solid #45d556;
+}
+h1 {
+    text-align: center;
+    color: #1fd74d;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 8px #000, 0 0 10px #2ecc40;
+    font-size: 2.2em;
+    margin-bottom: 10px;
+}
+#story, #options, #dice, #character-sheet {
+    margin-top: 22px;
+}
+button {
+    background: linear-gradient(90deg, #2cab2c 0%, #2ecc40 100%);
+    color: #fff;
+    border: none;
+    padding: 12px 22px;
+    margin: 8px 0;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 1.08em;
+    font-weight: 600;
+    box-shadow: 0 2px 8px #000;
+    transition: background 0.2s, transform 0.2s;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+button:hover {
+    background: linear-gradient(90deg, #2ecc40 0%, #145214 100%);
+    transform: scale(1.04);
+}
+.character {
+    margin-bottom: 14px;
+    padding: 10px 10px 10px 60px;
+    background: rgba(20, 40, 20, 0.97);
+    border-radius: 8px;
+    position: relative;
+    min-height: 56px;
+    box-shadow: 0 1px 6px #0f3d0f;
+    border-left: 5px solid #2ecc40;
+}
+.character-icon {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #2ecc4033;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    border: 2px solid #2ecc40;
+    box-shadow: 0 0 8px #2ecc4088;
+}
+#character-sheet h3 {
+    color: #2ecc40;
+    margin-bottom: 10px;
+    text-shadow: 1px 1px 6px #000;
+}
+#dice p {
+    font-size: 1.2em;
+    color: #b6ffb6;
+    text-shadow: 1px 1px 6px #000;
+}
+#story p, #options p {
+    font-size: 1.13em;
+    line-height: 1.6;
+}
+::-webkit-scrollbar {
+    width: 8px;
+    background: #222;
+}
+::-webkit-scrollbar-thumb {
+    background: #2ecc40;
+    border-radius: 6px;
+}
+a, a:visited {
+    color: #2ecc40;
+    text-decoration: underline;
+}
+input, select {
+    background: #111;
+    color: #b6ffb6;
+    border: 1px solid #2ecc40;
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin: 4px 0;
+}
+label {
+    color: #b6ffb6;
+}
+#classSelect button {
+    background: #111;
+    color: #2ecc40;
+    border: 1px solid #2ecc40;
+    margin: 6px 4px;
+    font-size: 1em;
+    min-width: 120px;
+    min-height: 60px;
+    box-shadow: 0 1px 4px #0f3d0f;
+}
+#classSelect button:hover {
+    background: #2ecc40;
+    color: #111;
+    border: 1px solid #b6ffb6;
+}
+#selectedClass p {
+    color: #b6ffb6;
+}
+.portrait {
+    border-radius: 12px;
+    background: #333;
+    display: inline-block;
+    width: 4em;
+    height: 4em;
+    text-align: center;
+    line-height: 4em;
+    margin-right: 10px;
+    object-fit: cover;
+}
+.chat-row {
+    margin-bottom: 10px;
+}
