@@ -1,65 +1,306 @@
 body {
-    background: linear-gradient(135deg, #121a12 0%, #121710 100%);
+    background: linear-gradient(135deg, #0f140f 0%, #1a1f1a 100%);
     color: #ced5ce;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 0;
+    overflow-x: hidden;
 }
-#game-container {
-    max-width: 650px;
-    margin: 40px auto;
-    background: rgba(55, 146, 63, 0.97);
-    padding: 28px;
-    border-radius: 16px;
-    box-shadow: 0 0 24px #35ac35;
+
+/* Start Screen Styles */
+#start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url('images/fantasy_landscape.png') no-repeat center center / cover; /* Placeholder image */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: #fff;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
+    z-index: 1000; /* Ensure it's on top */
+}
+
+#start-screen h1 {
+    font-size: 4.5em; /* Larger title */
+    margin-bottom: 40px;
+    color: #1fd74d;
+    letter-spacing: 5px;
+    text-shadow: 4px 4px 15px rgba(0, 0, 0, 0.9), 0 0 25px #2ecc40;
+}
+
+#start-screen button {
+    background: linear-gradient(90deg, #2ecc40, #145214);
+    color: #fff;
     border: 2px solid #45d556;
+    padding: 20px 50px; /* Larger button */
+    font-size: 2em; /* Larger font */
+    border-radius: 15px; /* More rounded */
+    cursor: pointer;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
+
+#start-screen button:hover {
+    background: linear-gradient(90deg, #145214, #2ecc40);
+    transform: translateY(-4px) scale(1.1); /* More pronounced hover */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+}
+
+/* Game Container Styles */
+#game-wrapper {
+    display: flex;
+    max-width: 1200px;
+    margin: 50px auto;
+    background: rgba(50, 85, 53, 0.92);
+    padding: 32px;
+    border-radius: 18px;
+    box-shadow: 0 12px 36px rgba(36, 61, 36, 0.6);
+    border: 2px solid #45d556;
+    backdrop-filter: blur(8px);
+    opacity: 0; /* Initially hidden */
+    transform: translateY(20px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+#game-wrapper.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+#main-content {
+    flex-grow: 1;
+    max-width: 700px;
+}
+
+#sidebar {
+    width: 300px;
+    margin-left: 30px;
+    background: rgba(30, 50, 30, 0.9);
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 4px solid #2ecc40;
+}
+
+/* Dropdown Styles */
+.dropdown {
+    margin-bottom: 15px;
+}
+
+.dropdown-btn {
+    color: #1fd74d;
+    border-bottom: 2px solid #45d556;
+    padding-bottom: 5px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none; /* Prevent text selection */
+    transition: color 0.2s ease;
+}
+
+.dropdown-btn:hover {
+    color: #b6ffb6; /* Lighter green on hover */
+}
+
+.dropdown-arrow {
+    font-size: 0.8em;
+    transition: transform 0.3s ease;
+}
+
+.dropdown-btn.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.dropdown-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-out; /* Smooth slide effect */
+    background: rgba(17, 17, 17, 0.8);
+    border-radius: 8px;
+    padding: 0 10px;
+    margin-top: 10px;
+}
+
+.dropdown-content.active {
+    display: block; /* Show when active */
+    max-height: 300px; /* Set a max-height to enable smooth transition */
+    overflow-y: auto; /* ADDED: Make dropdown content scrollable */
+    padding: 10px; /* Restore padding when active */
+}
+
+/* Scrollable Party Management Sections */
+#party-members,
+#available-members {
+    max-height: 200px; /* Adjust as needed */
+    overflow-y: auto;
+    padding-right: 10px; /* To prevent scrollbar from overlapping content */
+    margin-bottom: 15px; /* Space between sections */
+}
+
+/* Map Display Styles (small map in sidebar) */
+#map-display {
+    padding: 0px 0; /* Adjusted padding */
+    text-align: center; /* Center the image */
+}
+
+#map-display img {
+    max-width: 100%; /* Ensure map image fits within container */
+    height: auto;
+    border-radius: 8px; /* Slightly rounded corners for the map */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); /* Subtle shadow for depth */
+}
+
+/* Fullscreen Map Overlay */
+#fullscreen-map-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8); /* Semi-transparent black background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001; /* Above game-wrapper */
+    cursor: pointer; /* Indicate it's clickable to close */
+}
+
+#fullscreen-map-overlay img {
+    max-width: 90%; /* Max width of the image within the overlay */
+    max-height: 90%; /* Max height of the image within the overlay */
+    object-fit: contain; /* Ensure the image fits without cropping */
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(46, 204, 64, 0.6); /* Green glow */
+}
+
+
+#sidebar h3 {
+    color: #8aff8a;
+    border-bottom: 1px dashed #45d556;
+    padding-bottom: 3px;
+    margin-top: 15px;
+}
+
+#inventory-list {
+    list-style: none;
+    padding: 0;
+}
+
+#inventory-list li {
+    margin-bottom: 8px;
+    background: #111;
+    padding: 10px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.inventory-item {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Space between icon and text */
+}
+
+.inventory-item .icon {
+    font-size: 1.2em; /* Adjust icon size */
+}
+
+#inventory-list li button {
+    background: #222;
+    color: #2ecc40;
+    border: 1px solid #2ecc40;
+    padding: 6px 12px;
+    margin: 0;
+    font-size: 0.9em;
+    box-shadow: none;
+    transition: background 0.2s, color 0.2s;
+}
+
+#inventory-list li button:hover {
+    background: #2ecc40;
+    color: #111;
+}
+
+.hp-text {
+    font-weight: bold;
+    color: #90ee90; /* Light Green for default HP */
+    transition: color 0.3s ease;
+}
+
+.hp-text.low-hp {
+    color: #e74c3c; /* Red for low HP */
+}
+
 h1 {
     text-align: center;
     color: #1fd74d;
     letter-spacing: 2px;
-    text-shadow: 2px 2px 8px #000, 0 0 10px #2ecc40;
-    font-size: 2.2em;
-    margin-bottom: 10px;
+    text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.8), 0 0 12px #2ecc40;
+    font-size: 2.6em;
+    margin-bottom: 16px;
 }
-#story, #options, #dice, #character-sheet {
-    margin-top: 22px;
-}
+
 button {
-    background: linear-gradient(90deg, #2cab2c 0%, #2ecc40 100%);
+    background: linear-gradient(90deg, #29a629, #2ecc40);
     color: #fff;
     border: none;
-    padding: 12px 22px;
-    margin: 8px 0;
-    border-radius: 7px;
+    padding: 14px 26px;
+    margin: 10px 6px;
+    border-radius: 10px;
     cursor: pointer;
-    font-size: 1.08em;
+    font-size: 1.05em;
     font-weight: 600;
-    box-shadow: 0 2px 8px #000;
-    transition: background 0.2s, transform 0.2s;
-    outline: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-button:hover {
-    background: linear-gradient(90deg, #2ecc40 0%, #145214 100%);
-    transform: scale(1.04);
-}
-.character {
-    margin-bottom: 14px;
-    padding: 10px 10px 10px 60px;
-    background: rgba(20, 40, 20, 0.97);
-    border-radius: 8px;
+    box-shadow: 0 4px 12px #00000088;
+    transition: all 0.3s ease;
     position: relative;
-    min-height: 56px;
-    box-shadow: 0 1px 6px #0f3d0f;
-    border-left: 5px solid #2ecc40;
+    isolation: isolate;
 }
+
+button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle, #2ecc4088, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+}
+
+button:hover {
+    background: linear-gradient(90deg, #2ecc40, #145214);
+    transform: translateY(-2px) scale(1.05);
+}
+
+button:hover::after {
+    opacity: 1;
+}
+
+.character {
+    margin-bottom: 16px;
+    padding: 12px 14px 12px 64px;
+    background: rgba(30, 50, 30, 0.9);
+    border-radius: 10px;
+    position: relative;
+    min-height: 60px;
+    box-shadow: 0 2px 10px #0f3d0f88;
+    border-left: 6px solid #2ecc40;
+}
+
 .character-icon {
     position: absolute;
-    left: 10px;
-    top: 10px;
+    left: 12px;
+    top: 12px;
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -67,47 +308,34 @@ button:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2em;
+    font-size: 1.8em;
     border: 2px solid #2ecc40;
-    box-shadow: 0 0 8px #2ecc4088;
+    box-shadow: 0 0 10px #2ecc40aa;
 }
-#character-sheet h3 {
-    color: #2ecc40;
-    margin-bottom: 10px;
-    text-shadow: 1px 1px 6px #000;
+
+#story p, #options p {
+    font-size: 1.16em;
+    line-height: 1.7;
+    margin-bottom: 16px;
+    text-align: justify;
 }
+
 #dice p {
-    font-size: 1.2em;
+    font-size: 1.3em;
     color: #b6ffb6;
     text-shadow: 1px 1px 6px #000;
 }
-#story p, #options p {
-    font-size: 1.13em;
-    line-height: 1.6;
-}
-::-webkit-scrollbar {
-    width: 8px;
-    background: #222;
-}
-::-webkit-scrollbar-thumb {
-    background: #2ecc40;
-    border-radius: 6px;
-}
-a, a:visited {
-    color: #2ecc40;
-    text-decoration: underline;
-}
+
 input, select {
     background: #111;
     color: #b6ffb6;
     border: 1px solid #2ecc40;
-    border-radius: 4px;
-    padding: 4px 8px;
-    margin: 4px 0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 6px 0;
+    font-size: 1em;
 }
-label {
-    color: #b6ffb6;
-}
+
 #classSelect button {
     background: #111;
     color: #2ecc40;
@@ -117,26 +345,24 @@ label {
     min-width: 120px;
     min-height: 60px;
     box-shadow: 0 1px 4px #0f3d0f;
+    transition: all 0.3s ease;
 }
+
 #classSelect button:hover {
     background: #2ecc40;
     color: #111;
     border: 1px solid #b6ffb6;
+    transform: scale(1.04);
 }
-#selectedClass p {
-    color: #b6ffb6;
+
+::-webkit-scrollbar {
+    width: 8px;
+    background: #222;
 }
-.portrait {
-    border-radius: 12px;
-    background: #333;
-    display: inline-block;
-    width: 4em;
-    height: 4em;
-    text-align: center;
-    line-height: 4em;
-    margin-right: 10px;
-    object-fit: cover;
+::-webkit-scrollbar-thumb {
+    background: #2ecc40;
+    border-radius: 6px;
 }
-.chat-row {
-    margin-bottom: 10px;
+::-webkit-scrollbar-thumb:hover {
+    background: #45d556;
 }

@@ -1,75 +1,239 @@
 // --- Game Data ---
-const partyMembers = [
-    {
-        name: "Brother Aldous",
-        class: "Human Cleric",
-        str: 10,
-        dex: 10,
-        int: 16,
-        hp: 18,
-        icon: "⛪",
-        portraitUrl: "images/mhum1.png"
-    },
-    {
-        name: "Sister Mira",
-        class: "Elf Ranger",
-        str: 12,
-        dex: 16,
-        int: 12,
-        hp: 20,
-        icon: "🏹",
-        portraitUrl: "images/felf1.png"
-    },
-    {
-        name: "Durgan",
-        class: "Dwarf Fighter",
-        str: 16,
-        dex: 10,
-        int: 8,
-        hp: 24,
-        icon: "🛡️",
-        portraitUrl: "images/mdwrf1.png"
-    },
-    {
-        name: "Tikka",
-        class: "Halfling Rogue",
-        str: 9,
-        dex: 18,
-        int: 13,
-        hp: 16,
-        icon: "🗡️",
-        portraitUrl: "images/mhlf1.png"
-    },
-    {
-        name: "Eldra",
-        class: "Half-Elf Sorcerer",
-        str: 8,
-        dex: 12,
-        int: 18,
-        hp: 15,
-        icon: "✨",
-        portraitUrl: "images/fhelf1.png"
-    }
+const allPartyMembers = [
+    { name: "Brother Aldous", class: "Human Cleric", str: 10, dex: 10, int: 16, hp: 18, maxHp: 18, icon: "⛪", portraitUrl: "images/mhum1.png" },
+    { name: "Sister Mira", class: "Elf Ranger", str: 12, dex: 16, int: 12, hp: 20, maxHp: 20, icon: "🏹", portraitUrl: "images/felf1.png" },
+    { name: "Durgan", class: "Dwarf Fighter", str: 16, dex: 10, int: 8, hp: 24, maxHp: 24, icon: "🛡️", portraitUrl: "images/mdwrf1.png" },
+    { name: "Tikka", class: "Halfling Rogue", str: 9, dex: 18, int: 13, hp: 16, maxHp: 16, icon: "🗡️", portraitUrl: "images/mhlf1.png" },
+    { name: "Eldra", class: "Half-Elf Sorcerer", str: 8, dex: 12, int: 18, hp: 15, maxHp: 15, icon: "✨", portraitUrl: "images/fhelf1.png" }
 ];
 
 let player = null;
 let party = [];
+let availableMembers = [...allPartyMembers];
 let dayCount = 1;
+let currentArea = "The Starting Point"; // NEW: Track current named area
+let currentAreaWeather = "Clear skies"; // NEW: Store current weather for display
+let currentAreaEncounter = "Peaceful surroundings"; // NEW: Store current encounter for display
 let lastCheckpoint = null;
+let gold = 10;
+let inventory = [
+    { name: "Health Potion", quantity: 2, icon: "🧪" },
+    { name: "Torch", quantity: 1, icon: "🕯️" },
+    { name: "Rope", quantity: 1, icon: "🔗" }
+];
+
+// --- MODIFIED: Shop Items now more detailed ---
+const shopItems = [
+    { name: "Health Potion", cost: 10, sellPrice: 5, description: "Restores 10 HP.", icon: "🧪" },
+    { name: "Iron Sword", cost: 50, sellPrice: 25, description: "A basic but reliable sword. (+2 STR)", icon: "⚔️", statBonus: { str: 2 } },
+    { name: "Leather Armor", cost: 40, sellPrice: 20, description: "Provides decent protection. (+5 Max HP)", icon: "🪖", statBonus: { maxHp: 5 } },
+    { name: "Healing Salve", cost: 15, sellPrice: 7, description: "Restores 5 HP to all party members.", icon: "🩹" },
+    { name: "Map of Whispering Woods", cost: 20, sellPrice: 10, description: "Helps navigate the Whispering Woods.", icon: "🗺️" }
+];
 
 // --- DOM Elements ---
 const storyDiv = document.getElementById('story');
 const optionsDiv = document.getElementById('options');
 const diceDiv = document.getElementById('dice');
 const charSheetDiv = document.getElementById('character-sheet');
+const goldAmountSpan = document.getElementById('gold-amount');
+const inventoryList = document.getElementById('inventory-list');
+const partyManagementDiv = document.getElementById('party-members');
+const availableMembersDiv = document.getElementById('available-members');
+const restButton = document.getElementById('rest-button');
+const mapButton = document.getElementById('map-button');
+const mapDisplay = document.getElementById('map-display'); // Small map display in sidebar
+const fullscreenMapOverlay = document.getElementById('fullscreen-map-overlay'); // Fullscreen map overlay
 
-// --- Portrait & Chat Utility ---
+// New DOM elements for start screen and game wrapper
+const startScreen = document.getElementById('start-screen');
+const gameWrapper = document.getElementById('game-wrapper');
+const startGameButton = document.getElementById('startGameButton');
+// --- NEW DOM ELEMENT: Shop Display ---
+const shopDisplay = document.getElementById('shop-display');
+
+// NEW DOM elements for day/area display
+const dayCountDisplay = document.getElementById('day-count-display');
+const currentAreaDisplay = document.getElementById('current-area-display');
+const currentWeatherDisplay = document.getElementById('current-weather-display');
+const currentEncounterDisplay = document.getElementById('current-encounter-display');
+
+// NEW DOM elements for music control
+const backgroundMusic = document.getElementById('background-music');
+const musicToggleButton = document.getElementById('music-toggle-button');
+
+
+// --- Utility Functions ---
+function updateSidebar() {
+    goldAmountSpan.textContent = gold;
+    inventoryList.innerHTML = inventory.map(item => `
+        <li>
+            <span class="inventory-item">
+                <span class="icon">${item.icon || '❓'}</span> ${item.name} (x${item.quantity})
+            </span>
+            <button onclick="useItem('${item.name}')">Use</button>
+            <button onclick="sellItem('${item.name}')" style="margin-left: 5px;">Sell (${item.sellPrice || Math.floor(item.cost / 2)}G)</button>
+        </li>
+    `).join('');
+    renderPartyManagement();
+    renderShop(); // Ensure shop is updated if visible
+
+    // NEW: Update day/area/weather/encounter displays
+    dayCountDisplay.textContent = dayCount;
+    currentAreaDisplay.textContent = currentArea;
+    currentWeatherDisplay.textContent = currentAreaWeather;
+    currentEncounterDisplay.textContent = currentAreaEncounter;
+}
+
+// --- NEW FEATURE: Use Item Logic ---
+window.useItem = function(itemName) {
+    const item = inventory.find(i => i.name === itemName);
+    if (item && item.quantity > 0) {
+        if (itemName === "Health Potion") {
+            optionsDiv.innerHTML = `<div><b>Use Potion on:</b> ${
+                party.map(member =>
+                    `<button onclick="applyPotion('${member.name}')">${member.name}</button>`
+                ).join(' ')
+            }</div> <button onclick="cancelAction()">Cancel</button>`;
+
+            window.applyPotion = function(memberName) {
+                const member = party.find(m => m.name === memberName);
+                if (member) {
+                    member.hp = Math.min(member.maxHp, member.hp + 10);
+                    item.quantity--;
+                    if (item.quantity <= 0) { // Changed to <=0 for robustness
+                        inventory = inventory.filter(i => i.name !== itemName);
+                    }
+                    updateSidebar();
+                    renderCharacterSheet();
+                    showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `${member.name} restored 10 HP. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
+                    optionsDiv.innerHTML = ''; // Clear action buttons
+                }
+            }
+
+            window.cancelAction = function() {
+                optionsDiv.innerHTML = '';
+            }
+        } else if (itemName === "Healing Salve") {
+            party.forEach(member => {
+                member.hp = Math.min(member.maxHp, member.hp + 5);
+            });
+            item.quantity--;
+            if (item.quantity <= 0) {
+                inventory = inventory.filter(i => i.name !== itemName);
+            }
+            updateSidebar();
+            renderCharacterSheet();
+            showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `All party members restored 5 HP from Healing Salve. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
+            optionsDiv.innerHTML = '';
+        } else if (item.statBonus) {
+            // Apply permanent stat bonus for equipment
+            showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You equip the ${itemName}.`);
+            if (item.statBonus.str) player.str += item.statBonus.str;
+            if (item.statBonus.dex) player.dex += item.statBonus.dex;
+            if (item.statBonus.int) player.int += item.statBonus.int;
+            if (item.statBonus.maxHp) {
+                player.maxHp += item.statBonus.maxHp;
+                player.hp = player.maxHp; // Heal to full when equipping HP gear
+            }
+            inventory = inventory.filter(i => i.name !== itemName); // Item is equipped, remove from inventory
+            updateSidebar();
+            renderCharacterSheet();
+            optionsDiv.innerHTML = '';
+        } else {
+            // For items that don't have a direct "use" action or specific target (e.g., Map)
+            showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You used the ${itemName}. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
+            // If it's a consumable, decrement quantity:
+            // item.quantity--;
+            // if (item.quantity === 0) {
+            //     inventory = inventory.filter(i => i.name !== itemName);
+            // }
+            updateSidebar();
+            optionsDiv.innerHTML = '';
+        }
+    } else {
+        showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You don't have any ${itemName} to use.`);
+    }
+}
+
+function renderPartyManagement() {
+    partyManagementDiv.innerHTML = party.map(member => `
+        <div class="character">
+            ${getPortrait(member)}
+            <p>${member.name} (${member.class})</p>
+            ${member.name !== player.name ? `<button onclick="removeFromParty('${member.name}')">Remove</button>` : ''}
+        </div>
+    `).join('');
+
+    availableMembersDiv.innerHTML = availableMembers.map(member => `
+        <div class="character">
+            ${getPortrait(member)}
+            <p>${member.name} (${member.class})</p>
+            ${party.length < 4 ? `<button onclick="addToParty('${member.name}')">Add</button>` : ''}
+        </div>
+    `).join('');
+}
+
+function addToParty(memberName) {
+    if (party.length < 4) {
+        const memberToAdd = availableMembers.find(m => m.name === memberName);
+        if (memberToAdd) {
+            party.push(memberToAdd);
+            availableMembers = availableMembers.filter(m => m.name !== memberName);
+            updateSidebar();
+            renderCharacterSheet();
+            showDialogue({name: "System", icon: "⚙️", portraitUrl: "images/narrator.png"}, `${memberToAdd.name} joined your party.`);
+        }
+    } else {
+        showDialogue({name: "System", icon: "⚙️", portraitUrl: "images/narrator.png"}, "Your party is full!");
+    }
+}
+
+function removeFromParty(memberName) {
+    if (party.length > 1) { // Ensure player is not removed and at least one member remains
+        const memberToRemove = party.find(m => m.name === memberName);
+        if (memberToRemove && memberToRemove.name !== player.name) {
+            availableMembers.push(memberToRemove);
+            party = party.filter(m => m.name !== memberName);
+            updateSidebar();
+            renderCharacterSheet();
+            showDialogue({name: "System", icon: "⚙️", portraitUrl: "images/narrator.png"}, `${memberToRemove.name} left your party.`);
+        }
+    } else {
+        showDialogue({name: "System", icon: "⚙️", portraitUrl: "images/narrator.png"}, "You cannot remove your last party member!");
+    }
+}
+
+function rest() {
+    party.forEach(member => {
+        member.hp = member.maxHp;
+    });
+    dayCount++; // A rest also advances the day
+    showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You rest for the night. It is now Day ${dayCount}. All party members are fully healed.`);
+    renderCharacterSheet();
+    updateSidebar();
+}
+
+restButton.onclick = rest;
+
+function showMap() {
+    fullscreenMapOverlay.style.display = 'flex'; // Show the fullscreen map overlay
+    mapDisplay.style.display = 'none'; // Hide the small map in the sidebar
+}
+
+function hideMap() {
+    fullscreenMapOverlay.style.display = 'none'; // Hide the fullscreen map overlay
+    mapDisplay.style.display = 'block'; // Show the small map in the sidebar again
+}
+
+mapButton.onclick = showMap;
+fullscreenMapOverlay.onclick = hideMap; // Click anywhere on the overlay to close
+
 function getPortrait(character) {
     if (character.portraitUrl) {
-        // Larger, square, rounded edges
         return `<img class="portrait" src="${character.portraitUrl}" alt="${character.name}" style="width:4em;height:4em;border-radius:12px;margin-right:14px;object-fit:cover;background:#333;" />`;
     } else {
-        return `<img class="portrait" src="placeholder.png" alt="portrait" style="width:4em;height:4em;border-radius:12px;margin-right:14px;object-fit:cover;background:#333;" />`;
+        return `<img class="portrait" src="images/placeholder.png" alt="portrait" style="width:4em;height:4em;border-radius:12px;margin-right:14px;object-fit:cover;background:#333;" />`;
     }
 }
 
@@ -84,15 +248,13 @@ function showDialogue(speaker, text) {
     `;
 }
 
-// --- Story Premise ---
 function getStoryPremise(name) {
     return `
-You are ${name}, an orc outcast who has found faith in the light of the gods. Once feared as a marauder, you now walk the path of a paladin, seeking redemption and justice in a world that mistrusts your kind. 
+You are ${name}, an orc outcast who has found faith in the light of the gods. Once feared as a marauder, you now walk the path of a paladin, seeking redemption and justice in a world that mistrusts your kind.
 Your journey begins as you receive a vision: a village is threatened by a rising darkness, and only you can stand against it. Will you prove that even an orc can be a true champion of the light?
 `;
 }
 
-// --- Character Creator ---
 function characterCreator() {
     storyDiv.innerHTML = `<h2>Create Your Orc Paladin</h2>
         <label>Name: <input id="charName" maxlength="16" placeholder="Grushnak" /></label>
@@ -101,6 +263,7 @@ function characterCreator() {
     `;
     optionsDiv.innerHTML = "";
     diceDiv.innerHTML = "";
+    charSheetDiv.innerHTML = ""; // Clear character sheet during creation
 
     document.getElementById('rollStatsBtn').onclick = function () {
         function rollStat() {
@@ -133,6 +296,7 @@ function characterCreator() {
         `;
         document.getElementById('confirmCharBtn').onclick = function () {
             const name = document.getElementById('charName').value.trim() || "Grushnak";
+            const finalHp = hp > 0 ? hp : 1; // Ensure HP is at least 1
             player = {
                 name,
                 class: "Paladin",
@@ -142,22 +306,23 @@ function characterCreator() {
                 int: stats.int,
                 wis: stats.wis,
                 cha: stats.cha,
-                hp: hp > 0 ? hp : 1,
+                hp: finalHp,
+                maxHp: finalHp,
                 icon: "🗡️",
                 portraitUrl: "images/orc1.png"
             };
             party = [player];
-            startGame();
+            renderCharacterSheet(); // Render sheet after player is created
+            recruitParty(); // Proceed to party recruitment
+            updateSidebar(); // Initialize sidebar with player and gold
         };
     };
 }
 
-// --- Utility: Set checkpoint before each major section ---
 function setCheckpoint(sectionFunc) {
     lastCheckpoint = sectionFunc;
 }
 
-// --- Functions ---
 function renderCharacterSheet() {
     if (player && player.hp < 0) player.hp = 0;
     charSheetDiv.innerHTML = `<h3>Party</h3>` + party.map(member => `
@@ -167,7 +332,7 @@ function renderCharacterSheet() {
             </div>
             <div>
                 <strong>${member.name}</strong> (${member.class})<br>
-                STR: ${member.str} | DEX: ${member.dex} | INT: ${member.int} | WIS: ${member.wis !== undefined ? member.wis : "-"} | CHA: ${member.cha !== undefined ? member.cha : "-"} | HP: ${member.hp}
+                STR: ${member.str} | DEX: ${member.dex} | INT: ${member.int} | HP: <span class="hp-text ${member.hp <= member.maxHp / 4 ? 'low-hp' : ''}">${member.hp}</span>/${member.maxHp}
             </div>
         </div>
     `).join('');
@@ -175,6 +340,7 @@ function renderCharacterSheet() {
         showDeathScreen();
     }
 }
+
 
 function showDeathScreen() {
     storyDiv.innerHTML = `<h2 style="color:#e74c3c;font-size:2em;text-align:center;">💀 You Died 💀</h2>
@@ -188,7 +354,7 @@ function showDeathScreen() {
 
 window.retryCheckpoint = function() {
     if (lastCheckpoint) {
-        player.hp = 1;
+        party.forEach(p => p.hp = p.maxHp);
         optionsDiv.innerHTML = "";
         lastCheckpoint();
         renderCharacterSheet();
@@ -234,26 +400,27 @@ function showOptions(options) {
                 } else {
                     opt.diceCheck.fail();
                 }
-            });
+            }); // Added closing parenthesis for askDiceRoll
         } else {
             opt.action();
         }
     };
 }
 
-// --- Enhanced Turn-Based Combat System ---
+// --- MODIFIED: Combat Rewards and Gold/Item Handling ---
 function partyCombat(enemyGroup, nextScene) {
     let combatLog = [];
     let turnOrder = [];
     let turnIndex = 0;
     let inCombat = true;
+    let goldGained = 0; // Track gold gained in this combat
+    let itemsFound = []; // Track items found in this combat
 
     const partyCombatants = party.map((m, i) => ({
         ...m,
         side: "party",
         idx: i,
         currentHp: m.hp,
-        maxHp: m.hp,
         isAlive: function() { return this.currentHp > 0; }
     }));
     const enemyCombatants = enemyGroup.enemies.map((e, i) => ({
@@ -308,7 +475,7 @@ function partyCombat(enemyGroup, nextScene) {
                 ${getPortrait(m)}
                 <div>
                     <strong>${m.name}</strong> (${m.class})<br>
-                    HP: <span style="color:${m.currentHp > 0 ? '#2ecc40' : '#e74c3c'}">${Math.max(0, m.currentHp)}</span> / ${m.maxHp}
+                    HP: <span class="hp-text ${m.currentHp <= m.maxHp / 4 ? 'low-hp' : ''}">${Math.max(0, m.currentHp)}</span> / ${m.maxHp}
                 </div>
             </div>
         `).join('');
@@ -317,7 +484,7 @@ function partyCombat(enemyGroup, nextScene) {
                 ${getPortrait(e)}
                 <div>
                     <strong>${e.name}</strong> (${e.class || "Monster"})<br>
-                    HP: <span style="color:${e.currentHp > 0 ? '#2ecc40' : '#e74c3c'}">${Math.max(0, e.currentHp)}</span> / ${e.maxHp}
+                    HP: <span class="hp-text ${e.currentHp <= e.maxHp / 4 ? 'low-hp' : ''}">${Math.max(0, e.currentHp)}</span> / ${e.maxHp}
                 </div>
             </div>
         `).join('');
@@ -353,9 +520,46 @@ function partyCombat(enemyGroup, nextScene) {
         }
         if (getAlive("enemy").length === 0) {
             addLog(`<b style="color:#2ecc40;">Combat won</b>`);
+            // --- MODIFIED: Combat Rewards ---
+            const currentGoldReward = enemyGroup.goldReward || (rollDice(10) + 5);
+            gold += currentGoldReward;
+            goldGained += currentGoldReward;
+            addLog(`You are rewarded with ${currentGoldReward} gold.`);
+
+            if (enemyGroup.itemReward) {
+                addItemToInventory(enemyGroup.itemReward.name, enemyGroup.itemReward.quantity, enemyGroup.itemReward.icon);
+                itemsFound.push(enemyGroup.itemReward);
+                addLog(`You found a ${enemyGroup.itemReward.name}!`);
+            } else {
+                const potionChance = rollDice(4);
+                if (potionChance === 4) {
+                    addItemToInventory("Health Potion", 1, "🧪");
+                    itemsFound.push({ name: "Health Potion", quantity: 1, icon: "🧪" });
+                    addLog(`You found a Health Potion!`);
+                }
+            }
+            // --- END MODIFIED: Combat Rewards ---
+
+            // --- FIX: Update original party members' HP from combat results ---
+            partyCombatants.forEach(combatant => {
+                if (combatant.side === 'party') {
+                    const originalMember = party.find(p => p.name === combatant.name);
+                    if (originalMember) {
+                        originalMember.hp = combatant.currentHp > 0 ? combatant.currentHp : 0;
+                    }
+                }
+            });
+
+            updateSidebar();
+            renderCharacterSheet();
             renderCombat();
+
             setTimeout(() => {
-                showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "Combat won");
+                let rewardsSummary = `Combat won! You gained ${goldGained} gold.`;
+                if (itemsFound.length > 0) {
+                    rewardsSummary += ` You also found: ${itemsFound.map(item => `${item.quantity} ${item.name}`).join(', ')}.`;
+                }
+                showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, rewardsSummary); // MODIFIED: Added detailed reward message
                 optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
                 document.getElementById('combatContinueBtn').onclick = () => {
                     optionsDiv.innerHTML = "";
@@ -697,7 +901,7 @@ function rollEncounter() {
     let effect = null;
     if (roll === 20) {
         if (party.length < 4) {
-            const available = partyMembers.filter(m => !party.includes(m));
+            const available = allPartyMembers.filter(m => !party.some(p => p.name === m.name)); // Use allPartyMembers here
             if (available.length > 0) {
                 const newComp = available[Math.floor(Math.random() * available.length)];
                 party.push(newComp);
@@ -705,63 +909,119 @@ function rollEncounter() {
                 effect = () => renderCharacterSheet();
             } else {
                 encounter = "✨ You find a rare magical item that heals you (+5 HP)!";
-                effect = () => { player.hp += 5; renderCharacterSheet(); };
+                effect = () => { player.hp += 5; showDialogue({ name: "System", icon: "⚙️" }, `You gain 5 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
             }
         } else {
             encounter = "✨ You find a rare magical item that heals you (+5 HP)!";
-            effect = () => { player.hp += 5; renderCharacterSheet(); };
+            effect = () => { player.hp += 5; showDialogue({ name: "System", icon: "⚙️" }, `You gain 5 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
         }
     } else if (roll >= 16) {
         encounter = "😊 You meet a friendly traveler who shares food and stories. (+2 HP)";
-        effect = () => { player.hp += 2; renderCharacterSheet(); };
+        effect = () => { player.hp += 2; showDialogue({ name: "System", icon: "⚙️" }, `You gain 2 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
     } else if (roll >= 11) {
         encounter = "🚶‍♂️ The road is quiet, and you make good progress.";
     } else if (roll >= 6) {
         encounter = "⚠️ You stumble into a minor trap and lose 2 HP.";
-        effect = () => { player.hp -= 2; renderCharacterSheet(); };
+        effect = () => { player.hp -= 2; showDialogue({ name: "System", icon: "⚙️" }, `You lose 2 HP from a trap!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP loss
     } else if (roll > 1) {
         encounter = "👹 A monster ambushes you! (Party combat!)";
         effect = (nextScene) => {
             partyCombat({
                 enemies: [{
-                    name: "Orc Brute",
-                    icon: "👹",
-                    class: "Orc Brute",
-                    str: 16,
+                    name: "Goblin Scourge",
+                    icon: "👺",
+                    class: "Goblin",
+                    str: 10,
+                    dex: 14,
+                    int: 8,
+                    hp: 15 + dayCount * 1, // Scale with dayCount
+                    portraitUrl: "images/goblin.png"
+                },
+                {
+                    name: "Giant Spider",
+                    icon: "🕷️",
+                    class: "Beast",
+                    str: 12,
                     dex: 10,
-                    int: 6,
-                    hp: 18 + dayCount * 2,
-                    portraitUrl: "images/orcbrute.png"
+                    int: 4,
+                    hp: 12 + dayCount * 1,
+                    portraitUrl: "images/spider.png"
                 }],
-                desc: "A hulking orc brute blocks your path!",
+                desc: "A group of Goblins and Spiders leap out!",
+                goldReward: rollDice(10) + 10, // Increased gold reward for more challenging encounter
+                itemReward: (rollDice(3) === 3) ? { name: "Minor Healing Potion", quantity: 1, icon: "🧪" } : null,
                 onDefeat: () => {
-                    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "The monster is defeated! You may continue your journey.");
+                    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "The monsters are defeated!");
                 }
             }, nextScene);
         };
     } else {
-        encounter = "💀 A deadly foe appears! (Party combat!)";
+        encounter = "💀 A powerful beast stalks you! (Party combat!)";
         effect = (nextScene) => {
             partyCombat({
                 enemies: [{
-                    name: "Dread Wraith",
-                    icon: "💀",
-                    class: "Wraith",
-                    str: 14,
+                    name: "Dire Wolf",
+                    icon: "🐺",
+                    class: "Beast",
+                    str: 16,
                     dex: 14,
-                    int: 16,
-                    hp: 30 + dayCount * 3,
-                    portraitUrl: "images/wraith.png"
+                    int: 6,
+                    hp: 25 + dayCount * 2,
+                    portraitUrl: "images/direwolf.png"
+                },
+                {
+                    name: "Forest Guardian",
+                    icon: "🌳",
+                    class: "Elemental",
+                    str: 18,
+                    dex: 8,
+                    int: 10,
+                    hp: 30 + dayCount * 2,
+                    portraitUrl: "images/golem.png"
                 }],
-                desc: "A Dread Wraith emerges from the shadows!",
+                desc: "A fearsome Dire Wolf and a vengeful Forest Guardian appear!",
+                goldReward: rollDice(20) + 20,
+                itemReward: (rollDice(2) === 2) ? { name: "Elven Rope", quantity: 1, icon: "🔗" } : null,
                 onDefeat: () => {
-                    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "The deadly foe is vanquished! You may continue your journey.");
+                    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "You have overcome a formidable foe!");
                 }
             }, nextScene);
         };
     }
     return { roll, encounter, effect };
 }
+
+// --- NEW FEATURE: Add Item to Inventory Utility ---
+function addItemToInventory(itemName, quantity = 1, icon = '❓') {
+    const existingItem = inventory.find(item => item.name === itemName);
+    if (existingItem) {
+        existingItem.quantity += quantity;
+    } else {
+        const shopItemRef = shopItems.find(sItem => sItem.name === itemName);
+        inventory.push({
+            name: itemName,
+            quantity: quantity,
+            icon: icon,
+            cost: shopItemRef ? shopItemRef.cost : 0, // Preserve cost for selling if it was a shop item
+            sellPrice: shopItemRef ? shopItemRef.sellPrice : Math.floor((shopItemRef ? shopItemRef.cost : 0) / 2),
+            statBonus: shopItemRef ? shopItemRef.statBonus : null
+        });
+    }
+    updateSidebar();
+}
+
+// --- NEW FEATURE: Reward Party Function ---
+function rewardParty(amount, item = null) {
+    gold += amount;
+    let message = `You gained ${amount} gold!`;
+    if (item) {
+        addItemToInventory(item.name, item.quantity, item.icon);
+        message += ` And found a ${item.name}!`;
+    }
+    showDialogue({ name: "Reward", icon: "💰", portraitUrl: "images/narrator.png" }, message);
+    updateSidebar();
+}
+
 
 // --- Utility: Wait for click to continue ---
 function waitForContinue(next) {
@@ -772,81 +1032,107 @@ function waitForContinue(next) {
     };
 }
 
-// --- Day/Night System: Only roll weather/encounter at the start of each new day ---
-function newDay(nextSectionCallback) {
-    dayCount++;
-    // Only roll weather/encounter before greenhollowArrival and newChapterTown
-    if (
-        nextSectionCallback === greenhollowArrival ||
-        nextSectionCallback === newChapterTown
-    ) {
-        const weatherResult = rollWeather();
-        const encounterResult = rollEncounter();
-        let weatherHtml = `<p><b>Day ${dayCount} Weather:</b> ${weatherResult.roll} - ${weatherResult.weather}</p>`;
-        let encounterHtml = `<p><b>Day ${dayCount} Encounter:</b> ${encounterResult.roll} - ${encounterResult.encounter}</p>`;
-        if (encounterResult.effect) {
-            if (encounterResult.effect.length > 0) {
-                encounterResult.effect(nextSectionCallback);
-            } else {
-                encounterResult.effect();
-                waitForContinue(nextSectionCallback);
-            }
+// NEW: Function to handle moving to a new named area (rolls weather/encounter)
+function moveToArea(areaName, nextSceneCallback) {
+    dayCount++; // A day passes when you travel to a new area
+    currentArea = areaName;
+
+    const weatherResult = rollWeather();
+    const encounterResult = rollEncounter();
+
+    currentAreaWeather = weatherResult.weather; // Store for display in sidebar
+    currentAreaEncounter = encounterResult.encounter; // Store for display in sidebar
+
+    let areaIntroHtml = `<p><b>Entering ${areaName}</b></p>`;
+    let weatherHtml = `<p><b>Weather:</b> ${currentAreaWeather}</p>`;
+    let encounterHtml = `<p><b>Encounter:</b> ${currentAreaEncounter}</p>`;
+
+    storyDiv.innerHTML = areaIntroHtml + weatherHtml + encounterHtml;
+
+    if (encounterResult.effect) {
+        // If the encounter has a combat effect, it needs to be handled
+        // before proceeding to the next narrative scene.
+        if (encounterResult.effect.length > 0) { // If effect expects nextScene
+            encounterResult.effect(nextSceneCallback);
         } else {
-            storyDiv.innerHTML = weatherHtml + encounterHtml;
-            waitForContinue(nextSectionCallback);
+            encounterResult.effect();
+            waitForContinue(nextSceneCallback);
         }
     } else {
-        // No weather/encounter roll for other sections
-        nextSectionCallback();
+        waitForContinue(nextSceneCallback);
     }
+    updateSidebar(); // Update sidebar with new area, weather, encounter, day
 }
 
+// NEW: Function to handle a day passing within the current area (no new weather/encounter roll)
+function advanceDayInArea(nextSectionCallback) {
+    dayCount++;
+    showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `A day passes in ${currentArea}. It is now Day ${dayCount}.`);
+    waitForContinue(nextSectionCallback);
+    updateSidebar(); // Update day counter
+}
+
+
 // --- Insert setCheckpoint before each major section ---
-function startGame() {
-    dayCount = 1;
-    setCheckpoint(startGame);
+function mainGameStart() {
+    setCheckpoint(mainGameStart);
     storyDiv.innerHTML = `<p>${getStoryPremise(player.name)}</p>`;
     showOptions([
         {
             text: "Begin your quest",
             action: () => {
-                recruitParty();
+                moveToArea("The Road to Greenhollow", roadEncounter); // Rolls for weather/encounter for the road
             }
         }
     ]);
     renderCharacterSheet();
+    updateSidebar();
 }
 
 function recruitParty() {
     setCheckpoint(recruitParty);
-    storyDiv.innerHTML = `<p>Before you set out, you may choose <b>two</b> companions to join you on your path of redemption.</p>`;
+    storyDiv.innerHTML = `<p>Before you set out, you may choose up to <b>three</b> companions to join you on your path of redemption.</p>`;
     let chosen = [];
+    availableMembers = allPartyMembers.filter(member => !party.some(p => p.name === member.name));
+
     function renderRecruitOptions() {
-        showOptions(
-            partyMembers
-                .filter(m => !chosen.includes(m))
-                .map((member, idx) => ({
-                    text: `Recruit ${member.icon} ${member.name} (${member.class})`,
-                    action: () => {
-                        chosen.push(member);
-                        if (chosen.length < 2) {
-                            showDialogue(member, `${member.name} joins your cause! Choose one more companion.`);
-                            renderRecruitOptions();
-                        } else {
-                            party = [player, ...chosen];
-                            showDialogue(
-                                { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-                                `${chosen.map(m => m.name).join(" and ")} join your party!`
-                            );
+        optionsDiv.innerHTML = "";
+        if (chosen.length < 3 && availableMembers.length > 0) {
+            showOptions(
+                availableMembers
+                    .map((member, idx) => ({
+                        text: `Recruit ${member.icon} ${member.name} (${member.class})`,
+                        action: () => {
+                            chosen.push(member);
+                            party.push(member);
+                            availableMembers = availableMembers.filter(m => m.name !== member.name);
+                            showDialogue(member, `${member.name} joins your cause!`);
                             renderCharacterSheet();
-                            waitForContinue(() => newDay(firstVision));
+                            updateSidebar();
+                            renderRecruitOptions();
                         }
-                        renderCharacterSheet();
-                    }
-                }))
-        );
+                    }))
+            );
+            optionsDiv.innerHTML += `<button onclick="finishRecruitment()">Continue with current party</button>`;
+        } else {
+             finishRecruitment();
+        }
     }
+
+    window.finishRecruitment = function() {
+        showDialogue(
+            { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+            `Your party is ready! You have chosen ${chosen.map(m => m.name).join(", ") || "no additional companions"}.`
+        );
+        if (party[0] !== player) {
+            party = [player, ...party.filter(m => m !== player)];
+        }
+        renderCharacterSheet();
+        updateSidebar();
+        waitForContinue(mainGameStart);
+    };
     renderRecruitOptions();
+    updateSidebar();
 }
 
 function firstVision() {
@@ -860,14 +1146,16 @@ function firstVision() {
             text: "Swear an oath to help",
             action: () => {
                 showDialogue(player, "You awaken with resolve. The village of Greenhollow is in danger. You set out at dawn.");
-                waitForContinue(() => newDay(roadEncounter));
+                // This is a narrative event, not a new area.
+                waitForContinue(() => moveToArea("Greenhollow Village", greenhollowArrival));
             }
         },
         {
             text: "Ignore the vision",
             action: () => {
                 showDialogue(player, "You try to ignore the vision, but guilt gnaws at you. At sunrise, you decide to help after all.");
-                waitForContinue(() => newDay(roadEncounter));
+                // This is a narrative event, not a new area.
+                waitForContinue(() => moveToArea("Greenhollow Village", greenhollowArrival));
             }
         }
     ]);
@@ -887,14 +1175,11 @@ function roadEncounter() {
                 dc: 13,
                 success: () => {
                     showDialogue(player, "The guards, surprised by your honesty, let you pass but warn you to behave.");
-                    waitForContinue(() => newDay(greenhollowArrival));
+                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
                 },
                 fail: () => {
-                    showDialogue(player, "The guards don't trust you and demand a bribe. Lose 2 HP in the scuffle.");
-                    player.hp -= 2;
-                    renderCharacterSheet();
+                    showDialogue(player, "The guards don't trust you and demand a bribe. You prepare for a fight.");
                     waitForContinue(() => {
-                        // Avoidable combat scene if persuasion fails
                         partyCombat({
                             enemies: [{
                                 name: "Guard Captain",
@@ -917,12 +1202,13 @@ function roadEncounter() {
                                 portraitUrl: "images/guard2.png"
                             }],
                             desc: "The guards attack you!",
+                            goldReward: 25, // Specific reward for this combat
                             onDefeat: () => {
                                 showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "You defeat the guards and continue your journey.");
                                 optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
                                 document.getElementById('combatContinueBtn').onclick = () => {
                                     optionsDiv.innerHTML = "";
-                                    newDay(greenhollowArrival);
+                                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
                                 };
                             }
                         });
@@ -937,14 +1223,11 @@ function roadEncounter() {
                 dc: 15,
                 success: () => {
                     showDialogue(player, "Your presence is enough to make the guards back down. You continue on your way.");
-                    waitForContinue(() => newDay(greenhollowArrival));
+                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
                 },
                 fail: () => {
-                    showDialogue(player, "The guards attack! You lose 4 HP before escaping.");
-                    player.hp -= 4;
-                    renderCharacterSheet();
+                    showDialogue(player, "The guards attack! You prepare for a fight.");
                     waitForContinue(() => {
-                        // Avoidable combat scene if intimidation fails
                         partyCombat({
                             enemies: [{
                                 name: "Guard Captain",
@@ -967,12 +1250,13 @@ function roadEncounter() {
                                 portraitUrl: "images/guard2.png"
                             }],
                             desc: "The guards attack you!",
+                            goldReward: 25,
                             onDefeat: () => {
                                 showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "You defeat the guards and continue your journey.");
                                 optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
                                 document.getElementById('combatContinueBtn').onclick = () => {
                                     optionsDiv.innerHTML = "";
-                                    newDay(greenhollowArrival);
+                                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
                                 };
                             }
                         });
@@ -997,13 +1281,16 @@ function greenhollowArrival() {
                 dc: 14,
                 success: () => {
                     showDialogue(player, "You carry the woman to safety. The villagers begin to trust you.");
-                    waitForContinue(() => newDay(darknessRevealed));
+                    rewardParty(15);
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => darknessRevealed());
                 },
                 fail: () => {
-                    showDialogue(player, "You save the woman but are burned. Lose 5 HP.");
                     player.hp -= 5;
+                    showDialogue(player, `You save the woman but are burned. You lose 5 HP.`); // MODIFIED: Added dialogue for HP loss
                     renderCharacterSheet();
-                    waitForContinue(() => newDay(darknessRevealed));
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => darknessRevealed());
                 }
             }
         },
@@ -1014,13 +1301,16 @@ function greenhollowArrival() {
                 dc: 13,
                 success: () => {
                     showDialogue(player, "Your leadership saves the woman and inspires the villagers.");
-                    waitForContinue(() => newDay(darknessRevealed));
+                    rewardParty(15);
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => darknessRevealed());
                 },
                 fail: () => {
-                    showDialogue(player, "The rescue is chaotic. The woman is saved, but you are exhausted. Lose 3 HP.");
                     player.hp -= 3;
+                    showDialogue(player, `The rescue is chaotic. The woman is saved, but you are exhausted. You lose 3 HP.`); // MODIFIED: Added dialogue for HP loss
                     renderCharacterSheet();
-                    waitForContinue(() => newDay(darknessRevealed));
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => darknessRevealed());
                 }
             }
         }
@@ -1041,13 +1331,16 @@ function darknessRevealed() {
                 dc: 15,
                 success: () => {
                     showDialogue(player, "You defeat the warlock in single combat. The cultists scatter.");
-                    waitForContinue(() => newDay(redemption));
+                    rewardParty(30, {name: "Amulet of Protection", quantity: 1, icon: "🧿"});
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => redemption());
                 },
                 fail: () => {
-                    showDialogue(player, "The warlock wounds you with dark magic. Lose 6 HP.");
                     player.hp -= 6;
+                    showDialogue(player, `The warlock wounds you with dark magic. You lose 6 HP.`); // MODIFIED: Added dialogue for HP loss
                     renderCharacterSheet();
-                    waitForContinue(() => newDay(redemption));
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => redemption());
                 }
             }
         },
@@ -1058,13 +1351,16 @@ function darknessRevealed() {
                 dc: 14,
                 success: () => {
                     showDialogue(player, "Your words give the villagers courage. Together, you drive off the cultists.");
-                    waitForContinue(() => newDay(redemption));
+                    rewardParty(30, {name: "Village Provisions", quantity: 1, icon: "🍎"});
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => redemption());
                 },
                 fail: () => {
-                    showDialogue(player, "The villagers hesitate, and the cultists cause havoc. Lose 4 HP.");
                     player.hp -= 4;
+                    showDialogue(player, `The villagers hesitate, and the cultists cause havoc. You lose 4 HP.`); // MODIFIED: Added dialogue for HP loss
                     renderCharacterSheet();
-                    waitForContinue(() => newDay(redemption));
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => redemption());
                 }
             }
         }
@@ -1082,21 +1378,24 @@ function redemption() {
             text: "Accept the blessing ✨",
             action: () => {
                 showDialogue(player, "You feel the light of the gods fill you. Your HP is fully restored!");
-                player.hp = 10 + Math.floor((player.con - 10) / 2);
+                player.hp = player.maxHp;
+                party.forEach(member => member.hp = member.maxHp); // Also restore party HP
                 renderCharacterSheet();
-                waitForContinue(() => newDay(finalBattle));
+                updateSidebar();
+                // ADVANCE DAY WITHIN THE SAME AREA
+                advanceDayInArea(() => finalBattle());
             }
         },
         {
             text: "Humbly refuse",
             action: () => {
                 showDialogue(player, "You thank the priest, but say your deeds are their own reward.");
-                waitForContinue(() => newDay(finalBattle));
+                // ADVANCE DAY WITHIN THE SAME AREA
+                advanceDayInArea(() => finalBattle());
             }
         }
     ]);
 }
-// ...existing code...
 
 function finalBattle() {
     setCheckpoint(finalBattle);
@@ -1104,7 +1403,6 @@ function finalBattle() {
         { name: "Narrator", icon: "📜" },
         "As dawn breaks, the warlock returns, now a monstrous demon! The villagers cower. It is up to you and your companions to stand against the darkness."
     );
-    // Compulsory combat scene with Warlock/Demon
     partyCombat({
         enemies: [{
             name: "Dark Warlock",
@@ -1113,7 +1411,7 @@ function finalBattle() {
             str: 12,
             dex: 14,
             int: 18,
-            hp: 32,
+            hp: 32 + dayCount * 2,
             portraitUrl: "images/warlock.png"
         },
         {
@@ -1123,27 +1421,30 @@ function finalBattle() {
             str: 18,
             dex: 12,
             int: 14,
-            hp: 40,
+            hp: 40 + dayCount * 3,
             portraitUrl: "images/demon.png"
         }],
         desc: "The warlock transforms into a demon and attacks!",
+        goldReward: 50,
+        itemReward: {name: "Demon Heartstone", quantity: 1, icon: "❤️‍🔥"},
         onDefeat: () => {
             showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "Your party defeats the demon! The village is saved and you are hailed as a true paladin!");
             optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
             document.getElementById('combatContinueBtn').onclick = () => {
                 optionsDiv.innerHTML = "";
-                newChapterTown();
+                moveToArea("Silverbrook Town", newChapterTown); // Rolls for weather/encounter on arrival at Silverbrook
             };
         }
     });
 }
 
-// --- New Chapter: Town Mystery ---
+// --- Chapter 2: Silverbrook and Whispering Woods Journey ---
+
 function newChapterTown() {
     setCheckpoint(newChapterTown);
     showDialogue(
-        { name: "Narrator", icon: "📜" },
-        "After your victory, your party travels to the bustling town of Silverbrook. The streets are lively, but a shadow of unease hangs over the townsfolk."
+        { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "You arrive in the bustling town of Silverbrook. The streets are lively, but a shadow of unease hangs over the townsfolk."
     );
     waitForContinue(() => {
         showDialogue(
@@ -1159,6 +1460,7 @@ function newChapterTown() {
 }
 
 function townMysteryInvestigation() {
+    setCheckpoint(townMysteryInvestigation); // Added checkpoint for town investigation
     showDialogue(
         { name: "Mayor", icon: "🏛️", portraitUrl: "images/mayor.png" },
         "Thank goodness you're here! Last night, the blacksmith disappeared. Can you help us find out what's happening?"
@@ -1171,11 +1473,14 @@ function townMysteryInvestigation() {
                 dc: 14,
                 success: () => {
                     showDialogue(player, "You find a hidden passage beneath the shop leading to the old sewers.");
-                    waitForContinue(() => sewerBattle());
+                    rewardParty(10);
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => sewerBattle());
                 },
                 fail: () => {
                     showDialogue(player, "You find nothing but soot and tools. The trail is cold.");
-                    waitForContinue(() => townMysteryClue());
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => townMysteryClue());
                 }
             }
         },
@@ -1186,11 +1491,14 @@ function townMysteryInvestigation() {
                 dc: 13,
                 success: () => {
                     showDialogue(player, "A nervous child tells you about strange noises from the sewers.");
-                    waitForContinue(() => sewerBattle());
+                    rewardParty(10);
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => sewerBattle());
                 },
                 fail: () => {
                     showDialogue(player, "No one seems willing to talk. You'll have to search for clues yourself.");
-                    waitForContinue(() => townMysteryClue());
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => townMysteryClue());
                 }
             }
         }
@@ -1198,16 +1506,19 @@ function townMysteryInvestigation() {
 }
 
 function townMysteryClue() {
+    setCheckpoint(townMysteryClue); // Added checkpoint
     showDialogue(
-        { name: "Party Member", icon: "🗡️" },
+        { name: "Party Member", icon: "🗡️", portraitUrl: party[1] ? party[1].portraitUrl : "images/narrator.png" }, // Use a random party member or narrator
         "Maybe we should check the sewers. That's where trouble usually hides!"
     );
-    waitForContinue(() => sewerBattle());
+    // ADVANCE DAY WITHIN THE SAME AREA
+    advanceDayInArea(() => sewerBattle());
 }
 
 function sewerBattle() {
+    setCheckpoint(sewerBattle); // Added checkpoint for sewer battle
     showDialogue(
-        { name: "Narrator", icon: "📜" },
+        { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
         "You descend into the dark, damp sewers. Suddenly, monstrous rats and a shadowy figure attack!"
     );
     partyCombat({
@@ -1219,7 +1530,7 @@ function sewerBattle() {
                 str: 10,
                 dex: 14,
                 int: 2,
-                hp: 12,
+                hp: 12 + dayCount,
                 portraitUrl: "images/rat.png"
             },
             {
@@ -1229,11 +1540,13 @@ function sewerBattle() {
                 str: 12,
                 dex: 16,
                 int: 12,
-                hp: 18,
+                hp: 18 + dayCount,
                 portraitUrl: "images/kidnapper.png"
             }
         ],
         desc: "A swarm of giant rats and a mysterious kidnapper attack!",
+        goldReward: 30,
+        itemReward: {name: "Lockpick Set", quantity: 1, icon: "🗝️"},
         onDefeat: () => {
             showDialogue(
                 { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
@@ -1242,43 +1555,575 @@ function sewerBattle() {
             optionsDiv.innerHTML = `<button id="chapterContinueBtn">Continue</button>`;
             document.getElementById('chapterContinueBtn').onclick = () => {
                 optionsDiv.innerHTML = "";
-                newCompanionJoins();
+                // ADVANCE DAY WITHIN THE SAME AREA
+                advanceDayInArea(newCompanionJoins);
             };
         }
     });
 }
 
 function newCompanionJoins() {
-    // Example new companion
-    const newCompanion = {
-        name: "Lira",
-        class: "Human Bard",
-        str: 8,
-        dex: 14,
-        int: 15,
-        hp: 16,
-        icon: "🎶",
-        portraitUrl: "images/bard.png"
-    };
-    party.push(newCompanion);
-    renderCharacterSheet();
-    showDialogue(
-        newCompanion,
-        "Thank you for saving me! I would be honored to join your party and help on your adventures."
-    );
+    setCheckpoint(newCompanionJoins); // Added checkpoint
+    const potentialNewCompanion = allPartyMembers.find(m => !party.some(p => p.name === m.name));
+    let newCompanion;
+    if (potentialNewCompanion) {
+        newCompanion = potentialNewCompanion;
+    } else {
+        newCompanion = {
+            name: "Lira",
+            class: "Human Bard",
+            str: 8,
+            dex: 14,
+            int: 15,
+            hp: 16,
+            maxHp: 16,
+            icon: "🎶",
+            portraitUrl: "images/bard.png"
+        };
+    }
+
+    if (party.length < 4 && !party.some(m => m.name === newCompanion.name)) {
+        party.push(newCompanion);
+        availableMembers = availableMembers.filter(m => m.name !== newCompanion.name);
+        renderCharacterSheet();
+        updateSidebar();
+        showDialogue(
+            newCompanion,
+            "Thank you for saving me! I would be honored to join your party and help on your adventures."
+        );
+        rewardParty(0, {name: "Bard's Lute", quantity: 1, icon: "🎸"}); // No gold, just an item
+    } else {
+        showDialogue(
+            { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+            "You rescued someone, but your party is full, or no suitable new companion could join."
+        );
+    }
+
     optionsDiv.innerHTML = `<button id="nextAdventureBtn">Continue your journey</button>`;
     document.getElementById('nextAdventureBtn').onclick = () => {
         optionsDiv.innerHTML = "";
         showDialogue(
-            { name: "Narrator", icon: "📜" },
-            "With a new companion, your party sets out for new adventures, ready to face whatever challenges await!"
+            { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+            "With Silverbrook safe, you hear whispers of the grand city of Goldenspire, nestled beyond the ancient Whispering Woods. It's time for a new adventure!"
         );
-        optionsDiv.innerHTML = `<button onclick="location.reload()">Play Again</button>`;
+        moveToArea("Whispering Woods", startWhisperingWoodsJourney); // Rolls for weather/encounter for Whispering Woods
     };
 }
 
+
+// --- NEW FEATURE: Shop System Functions ---
+function renderShop() {
+    if (!shopDisplay) return; // Ensure element exists
+
+    shopDisplay.innerHTML = `<h3>Items for Sale:</h3>`;
+    shopItems.forEach(item => {
+        shopDisplay.innerHTML += `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; background:#1a1a1a; padding: 8px; border-radius: 5px;">
+                <span><span class="icon">${item.icon}</span> ${item.name} - ${item.cost} Gold</span>
+                <button onclick="buyItem('${item.name}')">Buy</button>
+            </div>
+            <p style="font-size:0.9em; color:#ccc; margin-left:10px;"><i>${item.description}</i></p>
+        `;
+    });
+}
+
+window.buyItem = function(itemName) {
+    const itemToBuy = shopItems.find(item => item.name === itemName);
+    if (!itemToBuy) {
+        showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" }, "I don't sell that item, friend.");
+        return;
+    }
+
+    if (gold >= itemToBuy.cost) {
+        gold -= itemToBuy.cost;
+        addItemToInventory(itemToBuy.name, 1, itemToBuy.icon); // Add 1 of the item
+        showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" }, `You bought a ${itemName} for ${itemToBuy.cost} gold! You now have ${gold} gold.`); // MODIFIED: Added gold amount
+    } else {
+        showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" }, "You don't have enough gold for that.");
+    }
+    updateSidebar();
+};
+
+window.sellItem = function(itemName) {
+    const itemToSell = inventory.find(item => item.name === itemName);
+    if (!itemToSell) {
+        showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" }, "You don't have that item to sell.");
+        return;
+    }
+
+    const sellPrice = itemToSell.sellPrice || Math.floor(itemToSell.cost / 2); // Use defined sellPrice or half cost
+
+    gold += sellPrice;
+    itemToSell.quantity--;
+    if (itemToSell.quantity <= 0) {
+        inventory = inventory.filter(item => item.name !== itemName);
+    }
+    showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" }, `You sold a ${itemName} for ${sellPrice} gold! You now have ${gold} gold.`); // MODIFIED: Added gold amount
+    updateSidebar();
+};
+// --- END NEW FEATURE: Shop System Functions ---
+
+
+// --- NEW CHAPTER: Whispering Woods Journey ---
+let forestDaysTraveled = 0;
+const totalForestDays = 5; // Example: It takes 5 days to cross the woods
+
+function startWhisperingWoodsJourney() {
+    setCheckpoint(startWhisperingWoodsJourney);
+    forestDaysTraveled = 0; // Reset for this journey
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "You step into the Whispering Woods. The trees immediately close in, their canopy thick and ancient. The air is cooler, and strange calls echo from the depths."
+    );
+    // This function is called by moveToArea, so the initial roll for entering the woods already occurred.
+    waitForContinue(whisperingWoodsDay);
+}
+
+function whisperingWoodsDay() {
+    setCheckpoint(whisperingWoodsDay); // Set checkpoint for each day in the woods
+    if (forestDaysTraveled >= totalForestDays) {
+        // Party has reached Goldenspire City
+        return moveToArea("Goldenspire City", enterGoldenspireCity); // Rolls for weather/encounter on arrival day. Appropriate.
+    }
+
+    forestDaysTraveled++;
+    dayCount++; // Advance day within the woods
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        `You continue your journey through the Whispering Woods. Day ${forestDaysTraveled} of ${totalForestDays}. It is now Day ${dayCount}.`
+    );
+    updateSidebar(); // Update day counter
+    forestEvent();
+}
+
+function forestEvent() {
+    setCheckpoint(forestEvent);
+    // Add specific forest events here, or use general encounter system
+    const eventRoll = rollDice(10);
+
+    if (eventRoll <= 3) {
+        // Just travel, no special event beyond weather/encounter
+        showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+            "The day passes with uneventful travel through the dense woods."
+        );
+        waitForContinue(whisperingWoodsDay); // Proceed to next day
+    } else if (eventRoll <= 6) {
+        // Mysterious character encounter
+        const characterRoll = rollDice(2);
+        if (characterRoll === 1) {
+            showDialogue({ name: "Mysterious Hermit", icon: "🧙", portraitUrl: "images/hermit.png" },
+                "Greetings, travelers. The woods whisper secrets only to those who listen. Beware the sunken crypt, its shadows stir."
+            );
+            optionsDiv.innerHTML = `
+                <button onclick="askHermitForAdvice()">Ask for advice</button>
+                <button onclick="continueJourney()">Ignore and continue</button>
+            `;
+            window.askHermitForAdvice = function() {
+                showDialogue(player, "What do you know of this crypt?");
+                waitForContinue(() => {
+                    showDialogue({ name: "Mysterious Hermit", icon: "🧙", portraitUrl: "images/hermit.png" },
+                        "An ancient evil sleeps there. Only the bravest, or most foolish, dare disturb it. Take this. It might help."
+                    );
+                    rewardParty(0, {name: "Ancient Map Fragment", quantity: 1, icon: "🗺️"});
+                    waitForContinue(whisperingWoodsDay);
+                });
+            };
+            window.continueJourney = function() {
+                showDialogue(player, "We have no time for cryptic warnings.");
+                waitForContinue(whisperingWoodsDay);
+            };
+        } else {
+            showDialogue({ name: "Lost Scout", icon: "🌲", portraitUrl: "images/scout.png" },
+                "Phew, glad to see friendly faces! I'm lost. Can you help me find my way to a clearer path?"
+            );
+            optionsDiv.innerHTML = `
+                <button onclick="helpScout()">Help the Scout (DEX Check DC 12)</button>
+                <button onclick="demandPayment()">Demand Payment (CHA Check DC 10)</button>
+                <button onclick="leaveScout()">Leave the Scout</button>
+            `;
+            window.helpScout = function() {
+                askDiceRoll("Roll to navigate the woods (DEX check, DC 12)", (roll) => {
+                    if (roll >= 12) {
+                        showDialogue(player, "You expertly guide the scout to a well-worn trail.");
+                        rewardParty(20);
+                        showDialogue({ name: "Lost Scout", icon: "🌲", portraitUrl: "images/scout.png" }, "Thank you! Take this for your troubles.");
+                        waitForContinue(whisperingWoodsDay);
+                    } else {
+                        showDialogue(player, "You struggle to find the way, eventually leading the scout back where you started. They leave frustrated.");
+                        waitForContinue(whisperingWoodsDay);
+                    }
+                });
+            };
+            window.demandPayment = function() {
+                askDiceRoll("Roll to demand payment (CHA check, DC 10)", (roll) => {
+                    if (roll >= 10) {
+                        showDialogue(player, "The scout begrudgingly hands over some coin.");
+                        rewardParty(10);
+                        waitForContinue(whisperingWoodsDay);
+                    } else {
+                        showDialogue(player, "The scout curses you and disappears into the undergrowth.");
+                        waitForContinue(whisperingWoodsDay);
+                    }
+                });
+            };
+            window.leaveScout = function() {
+                showDialogue(player, "You tell the scout you have your own journey to tend to.");
+                waitForContinue(whisperingWoodsDay);
+            };
+        }
+    } else if (eventRoll <= 8) {
+        // Abandoned Crypt discovery
+        showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+            "Deep within the woods, you stumble upon a crumbling stone structure, half-overgrown with moss and vines. It appears to be an abandoned crypt."
+        );
+        optionsDiv.innerHTML = `
+            <button onclick="exploreCrypt()">Explore the crypt</button>
+            <button onclick="avoidCrypt()">Avoid the crypt and continue</button>
+        `;
+        window.exploreCrypt = function() {
+            setCheckpoint(exploreCrypt); // Checkpoint before entering crypt
+            showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+                "The air within the crypt is heavy and cold. Dust motes dance in the faint light. Ahead, a disturbed sarcophagus suggests recent activity..."
+            );
+            waitForContinue(() => cryptEncounter());
+        };
+        window.avoidCrypt = function() {
+            showDialogue(player, "This place feels too unsettling. Best to leave it be.");
+            waitForContinue(whisperingWoodsDay);
+        };
+    } else {
+        // Resource finding mission
+        showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+            "You notice some rare herbs growing nearby, or perhaps signs of small game."
+        );
+        optionsDiv.innerHTML = `
+            <button onclick="gatherResources()">Gather Resources (WIS Check DC 11)</button>
+            <button onclick="ignoreResources()">Ignore and continue travel</button>
+        `;
+        window.gatherResources = function() {
+            askDiceRoll("Roll to gather resources effectively (WIS check, DC 11)", (roll) => {
+                if (roll >= 11) {
+                    showDialogue(player, "You skillfully gather valuable herbs and berries.");
+                    rewardParty(5, {name: "Wild Berries", quantity: 3, icon: "🍓"});
+                    waitForContinue(whisperingWoodsDay);
+                } else {
+                    showDialogue(player, "You struggle to find anything useful, or the herbs turn out to be poisonous.");
+                    showDialogue({ name: "System", icon: "⚙️" }, "You gain nothing useful.");
+                    waitForContinue(whisperingWoodsDay);
+                }
+            });
+        };
+        window.ignoreResources = function() {
+            showDialogue(player, "You press on, focusing on reaching your destination.");
+            waitForContinue(whisperingWoodsDay);
+        };
+    }
+}
+
+function cryptEncounter() {
+    setCheckpoint(cryptEncounter);
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "Suddenly, skeletal figures rise from the dust, guardians of the crypt!"
+    );
+    partyCombat({
+        enemies: [
+            { name: "Skeleton Warrior", icon: "🦴", class: "Undead", str: 10, dex: 8, int: 5, hp: 15, portraitUrl: "images/skeleton.png" },
+            { name: "Crypt Ghoul", icon: "🧟", class: "Undead", str: 14, dex: 10, int: 7, hp: 20, portraitUrl: "images/ghoul.png" }
+        ],
+        desc: "Undead guardians animate to defend their rest!",
+        goldReward: 40,
+        itemReward: {name: "Ancient Coin", quantity: 1, icon: "🪙"},
+        onDefeat: () => {
+            showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+                "The crypt is silent once more. You find some valuables among the dust."
+            );
+            optionsDiv.innerHTML = `<button id="continueCryptBtn">Continue searching</button>`;
+            document.getElementById('continueCryptBtn').onclick = () => {
+                optionsDiv.innerHTML = "";
+                findCryptTreasure();
+            };
+        }
+    });
+}
+
+function findCryptTreasure() {
+    setCheckpoint(findCryptTreasure);
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "Deeper in the crypt, you discover a hidden compartment containing an ancient, dusty chest."
+    );
+    optionsDiv.innerHTML = `
+        <button onclick="attemptToOpenChest()">Attempt to open the chest (DEX Check DC 13)</button>
+        <button onclick="leaveCrypt()">Leave the crypt</button>
+    `;
+
+    window.attemptToOpenChest = function() {
+        askDiceRoll("Roll to pick the lock or force it open (DEX check, DC 13)", (roll) => {
+            if (roll >= 13) {
+                showDialogue(player, "You manage to open the chest!");
+                rewardParty(50, {name: "Silver Locket", quantity: 1, icon: "📿"});
+                waitForContinue(whisperingWoodsDay);
+            } else {
+                showDialogue(player, "The chest's lock is sturdy, or you lack the right tools. It won't budge.");
+                waitForContinue(whisperingWoodsDay);
+            }
+        });
+    };
+    window.leaveCrypt = function() {
+        showDialogue(player, "You decide the crypt holds no more for you and leave.");
+        waitForContinue(whisperingWoodsDay);
+    };
+}
+
+
+function enterGoldenspireCity() {
+    setCheckpoint(enterGoldenspireCity);
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "Finally, after days of travel through the Whispering Woods, the trees thin, and the grand spires of Goldenspire City gleam in the distance. You have arrived!"
+    );
+    optionsDiv.innerHTML = `
+        <button onclick="exploreGoldenspire()">Explore Goldenspire City</button>
+        <button onclick="visitGoldenspireShop()">Visit the City Shop</button>
+    `;
+}
+
+function exploreGoldenspire() {
+    setCheckpoint(exploreGoldenspire); // Added checkpoint
+    showDialogue({ name: "Goldenspire Guard", icon: "💂", portraitUrl: "images/guard3.png" },
+        "Welcome to Goldenspire, travelers. May your stay be prosperous. Be wary of the rumors of strange disappearances near the outer walls."
+    );
+    showOptions([
+        { text: "Ask about the disappearances", action: () => {
+            showDialogue(player, "What can you tell us about these disappearances?");
+            waitForContinue(() => {
+                showDialogue({name: "Goldenspire Guard", icon: "💂", portraitUrl: "images/guard3.png"}, "Just strange cult-like markings and whispers in the night. The Mayor is offering a reward for any information.");
+                // ADVANCE DAY WITHIN THE SAME AREA
+                advanceDayInArea(goldenspireMystery);
+            });
+        }},
+        { text: "Find an Inn", action: () => {
+            showDialogue(player, "We seek a place to rest.");
+            waitForContinue(() => {
+                showDialogue({name: "Innkeeper", icon: "🍺", portraitUrl: "images/innkeeper.png"}, "Welcome to The Gilded Gryphon! Rooms are 5 gold a night.");
+                gold -= 5; // Deduct gold for rest
+                showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You spent 5 gold for a night's rest. You now have ${gold} gold.`); // MODIFIED: Added gold loss message
+                rest(); // Automatically rests and uses gold
+                waitForContinue(enterGoldenspireCity); // Return to city options after rest
+            });
+        }},
+        { text: "Look for new quests", action: () => {
+            showDialogue(player, "We are adventurers looking for work.");
+            // ADVANCE DAY WITHIN THE SAME AREA
+            advanceDayInArea(goldenspireQuests);
+        }}
+    ]);
+}
+
+function visitGoldenspireShop() {
+    setCheckpoint(visitGoldenspireShop); // Added checkpoint
+    showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" },
+        "Welcome to 'The Golden Hoard', where quality meets convenience!"
+    );
+    renderShop(); // Displays the shop items
+    optionsDiv.innerHTML = `<button onclick="enterGoldenspireCity()">Leave Shop</button>`;
+}
+
+function goldenspireMystery() {
+    setCheckpoint(goldenspireMystery);
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "You decide to investigate the disappearances in Goldenspire City. Following the guard's vague directions, you find strange markings on an alley wall."
+    );
+    showOptions([
+        {
+            text: "Examine the markings (INT Check DC 15)",
+            diceCheck: {
+                prompt: "Roll to decipher the strange markings.",
+                dc: 15,
+                success: () => {
+                    showDialogue(player, "You recognize ancient cultist symbols, pointing towards the old abandoned temple outside the city walls.");
+                    rewardParty(20);
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => cultistLair());
+                },
+                fail: () => {
+                    showDialogue(player, "The symbols are meaningless to you. You spend hours confused.");
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(enterGoldenspireCity);
+                }
+            }
+        },
+        {
+            text: "Ask around (CHA Check DC 14)",
+            diceCheck: {
+                prompt: "Roll to gather information from nervous townsfolk.",
+                dc: 14,
+                success: () => {
+                    showDialogue(player, "A frightened merchant whispers about cloaked figures dragging people towards the old temple.");
+                    rewardParty(20);
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(() => cultistLair());
+                },
+                fail: () => {
+                    showDialogue(player, "The townsfolk are too scared to talk, or give you false leads.");
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(enterGoldenspireCity);
+                }
+            }
+        }
+    ]);
+}
+
+function cultistLair() {
+    setCheckpoint(cultistLair);
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        "You arrive at the dilapidated temple, an ominous aura emanating from within. As you approach, cloaked figures emerge, chanting unsettling incantations!"
+    );
+    partyCombat({
+        enemies: [
+            { name: "Cultist Initiate", icon: "🌑", class: "Human Cultist", str: 10, dex: 10, int: 8, hp: 16, portraitUrl: "images/cultist1.png" },
+            { name: "Cultist Fanatic", icon: " fanatic", class: "Human Cultist", str: 12, dex: 10, int: 10, hp: 20, portraitUrl: "images/cultist2.png" },
+            { name: "Cultist Sorcerer", icon: "✨", class: "Human Sorcerer", str: 8, dex: 12, int: 16, hp: 25, portraitUrl: "images/cultistsorcerer.png" }
+        ],
+        desc: "A group of dark cultists blocks your way!",
+        goldReward: 60,
+        itemReward: {name: "Cultist Robe", quantity: 1, icon: "🧥"},
+        onDefeat: () => {
+            showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+                "The cultists are defeated! You have saved the missing townsfolk and brought peace to Goldenspire."
+            );
+            optionsDiv.innerHTML = `<button id="chapterEndBtn">Conclude Chapter</button>`;
+            document.getElementById('chapterEndBtn').onclick = () => {
+                optionsDiv.innerHTML = "";
+                endGame("victory"); // End the game with a victory
+            };
+        }
+    });
+}
+
+function goldenspireQuests() {
+    setCheckpoint(goldenspireQuests);
+    showDialogue({ name: "Quest Board", icon: "📜", portraitUrl: "images/narrator.png" },
+        "The city quest board offers several tasks. What will you choose?"
+    );
+    showOptions([
+        { text: "Clear Rat Infestation (Combat)", action: () => {
+            partyCombat({
+                enemies: [{name: "Giant Rat Swarm", icon: "🐀", class: "Beast", str: 8, dex: 12, int: 2, hp: 15, portraitUrl: "images/rat.png"}],
+                desc: "A nasty rat infestation in the sewers!",
+                goldReward: 20,
+                onDefeat: () => {
+                    showDialogue({name: "Narrator", icon: "📜"}, "You cleared the rat infestation!");
+                    // ADVANCE DAY WITHIN THE SAME AREA
+                    advanceDayInArea(enterGoldenspireCity);
+                }
+            });
+        }},
+        { text: "Retrieve Stolen Goods (Investigation)", diceCheck: {
+            prompt: "Roll to track down the thieves (DEX Check DC 12)",
+            dc: 12,
+            success: () => {
+                showDialogue(player, "You track the thieves to their hideout and retrieve the goods!");
+                rewardParty(30, {name: "Rare Gem", quantity: 1, icon: "💎"});
+                // ADVANCE DAY WITHIN THE SAME AREA
+                advanceDayInArea(enterGoldenspireCity);
+            },
+            fail: () => {
+                showDialogue(player, "The thieves are too elusive, you lose their trail.");
+                // ADVANCE DAY WITHIN THE SAME AREA
+                advanceDayInArea(enterGoldenspireCity);
+            }
+        }},
+        { text: "Return to City Center", action: () => { enterGoldenspireCity(); }}
+    ]);
+}
+
+
+function endGame(outcome) {
+    if (outcome === "victory") {
+        storyDiv.innerHTML = `<h2 style="color:#2ecc4c;font-size:2em;text-align:center;">🏆 Victory! 🏆</h2>
+            <p style="text-align:center;">You have brought light to the dark corners of Eldoria. Your legend as the Orc Paladin will echo through the ages!</p>`;
+    } else { // Can be extended for other outcomes
+        storyDiv.innerHTML = `<h2 style="color:#e74c3c;font-size:2em;text-align:center;">Game Over</h2>
+            <p style="text-align:center;">Your journey concludes.</p>`;
+    }
+    optionsDiv.innerHTML = `<button onclick="location.reload()">Play Again</button>`;
+    diceDiv.innerHTML = "";
+    pauseMusic(); // Pause music on game over
+}
+
+
+// --- Dropdown functionality ---
+function toggleDropdown(event) {
+    const button = event.currentTarget;
+    const targetId = button.dataset.target;
+    const content = document.getElementById(targetId);
+
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown-content.active').forEach(openContent => {
+        if (openContent.id !== targetId) {
+            openContent.classList.remove('active');
+            openContent.previousElementSibling.classList.remove('active'); // Remove active from button
+        }
+    });
+
+    // Toggle the clicked one
+    button.classList.toggle('active');
+    content.classList.toggle('active');
+    // --- NEW: Render shop if the shop dropdown is opened ---
+    if (targetId === "shop-section-content" && content.classList.contains('active')) {
+        renderShop();
+    }
+}
+
+// --- Music Control Functions ---
+function playMusic() {
+    if (backgroundMusic) {
+        backgroundMusic.play().catch(e => console.error("Error playing music:", e));
+        musicToggleButton.textContent = "Music: ON 🎵";
+        musicToggleButton.classList.add('active');
+    }
+}
+
+function pauseMusic() {
+    if (backgroundMusic) {
+        backgroundMusic.pause();
+        musicToggleButton.textContent = "Music: OFF 🔇";
+        musicToggleButton.classList.remove('active');
+    }
+}
+
+function toggleMusic() {
+    if (backgroundMusic.paused) {
+        playMusic();
+    } else {
+        pauseMusic();
+    }
+}
+
+
 // --- Initialize the game ---
+function showStartScreen() {
+    startScreen.style.display = 'flex';
+    gameWrapper.style.display = 'none'; // Ensure game wrapper is hidden initially
+    startGameButton.onclick = () => {
+        startScreen.style.display = 'none';
+        gameWrapper.style.display = 'flex'; // Show game wrapper
+        gameWrapper.classList.add('visible'); // Trigger animation
+        characterCreator();
+        playMusic(); // Start music when the game begins
+    };
+
+    // Attach dropdown listeners once on load
+    document.querySelectorAll('.dropdown-btn').forEach(button => {
+        button.addEventListener('click', toggleDropdown);
+    });
+
+    // Attach music toggle listener
+    if (musicToggleButton) {
+        musicToggleButton.addEventListener('click', toggleMusic);
+    }
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
-    characterCreator();
-    renderCharacterSheet();
+    // Initial update to set default values in sidebar
+    updateSidebar();
+    showStartScreen();
 });

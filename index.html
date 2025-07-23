@@ -6,13 +6,81 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container">
+    <audio id="background-music" src="audio/fantasy-music-lumina-143991.mp3" loop></audio>
+    <div id="start-screen">
         <h1>BALLAD OF THE ORC PALADIN</h1>
-        <div id="story"></div>
-        <div id="options"></div>
-        <div id="dice"></div>
-        <div id="character-sheet"></div>
+        <button id="startGameButton">Start Game</button>
     </div>
+
+    <div id="game-wrapper" style="display: none;">
+        <div id="main-content">
+            <h1>BALLAD OF THE ORC PALADIN</h1>
+            <p id="description">A text-based adventure game where you play as an orc paladin.</p>
+            <div id="story"></div>
+            <div id="options"></div>
+            <div id="dice"></div>
+            <div id="character-sheet"></div>
+        </div>
+        <div id="sidebar">
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="inventory-section-content">Inventory <span class="dropdown-arrow">▼</span></h2>
+                <div id="inventory-section-content" class="dropdown-content">
+                    <p>Gold: <span id="gold-amount">0</span></p>
+                    <ul id="inventory-list"></ul>
+                </div>
+            </div>
+
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="party-management-section-content">Party Management <span class="dropdown-arrow">▼</span></h2>
+                <div id="party-management-section-content" class="dropdown-content">
+                    <h3>Current Party</h3>
+                    <div id="party-members"></div>
+                    <h3>Available Members</h3>
+                    <div id="available-members"></div>
+                </div>
+            </div>
+
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="shop-section-content">Shop <span class="dropdown-arrow">▼</span></h2>
+                <div id="shop-section-content" class="dropdown-content">
+                    <div id="shop-display"></div>
+                </div>
+            </div>
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="actions-section-content">Actions <span class="dropdown-arrow">▼</span></h2>
+                <div id="actions-section-content" class="dropdown-content">
+                    <button id="rest-button">Rest</button>
+                    <button id="map-button">Map</button>
+                    <div id="map-display">
+                        <img src="images/world_map.png" alt="World Map" style="width:100%; height:auto;">
+                    </div>
+                </div>
+            </div>
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="settings-section-content">Settings <span class="dropdown-arrow">▼</span></h2>
+                <div id="settings-section-content" class="dropdown-content">
+                    <div class="sidebar-section">
+                        <h3>Settings</h3>
+                        <!-- Changed from checkbox to button for consistency with JS and better styling -->
+                        <button id="music-toggle-button" class="sidebar-button">Music: ON 🎵</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="current-location">
+        <h3>Current Location</h3>
+        <p>Area: <span id="current-area-display">The Starting Point</span></p>
+        <p>Day: <span id="day-count-display">1</span></p>
+        <p>Weather: <span id="current-weather-display">Clear skies</span></p>
+        <p>Encounter: <span id="current-encounter-display">Peaceful surroundings</span></p>
+        </div>
+    </div>
+
+    <div id="fullscreen-map-overlay" style="display:none;">
+        <img src="images/world_map.png" alt="Enlarged World Map">
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
