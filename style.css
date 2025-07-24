@@ -355,6 +355,33 @@ input, select {
     transform: scale(1.04);
 }
 
+/* NEW: Styles for skill toggle buttons */
+.skill-toggle-btn {
+    background: #333;
+    color: #b6ffb6;
+    border: 1px solid #444;
+    padding: 8px 12px;
+    margin: 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background 0.2s, border-color 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.skill-toggle-btn.active {
+    background: #2ecc40;
+    color: #111;
+    border-color: #b6ffb6;
+    box-shadow: 0 0 10px #2ecc40aa;
+}
+
+.skill-toggle-btn:hover:not(.active) {
+    background: #444;
+    border-color: #666;
+}
+
+
 ::-webkit-scrollbar {
     width: 8px;
     background: #222;
