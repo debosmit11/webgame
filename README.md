@@ -8,3 +8,7 @@ also add chance encounter which also uses a d20 roll in which the higher the rol
 3. increase the role of the companions in the story such as dialogue opions and using their respective class specific actions.
 
 4. add a dnd stye turn based combat mechanic based on dice roll to make the game more intresting.
+5.from the above given script.js give me a code to make a side bar where we add an inventory feature where i can add items for the party such as potions and gold , also ad another section in the side bar which includes party management which can alter the current party members from the ones we meet through the story , maximum party member for a party is 4.
+6. add an reward system where party is rewarded with either some gold or potions or equivalent after every successful fight.
+7. add an equipment section where party can buy equipment from towns and villages with the gold aquired.
+8. add a resting system where resting can restore hp.
