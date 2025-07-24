@@ -10,6 +10,8 @@ const allPartyMembers = [
 let player = null;
 let party = [];
 let availableMembers = [...allPartyMembers];
+let isInCombat = false;
+let currentCombatResumeFunction = null; // Stores the nextTurn function from partyCombat
 let dayCount = 1;
 let currentArea = "The Starting Point"; // NEW: Track current named area
 let currentAreaWeather = "Clear skies"; // NEW: Store current weather for display
@@ -78,7 +80,7 @@ function updateSidebar() {
                 <span class="icon">${item.icon || '❓'}</span> ${item.name} (x${item.quantity})
             </span>
             <button onclick="useItem('${item.name}')">Use</button>
-            <button onclick="sellItem('${item.name}')" style="margin-left: 5px;">Sell (${item.sellPrice || Math.floor(item.cost / 2)}G)</button>
+            <button onclick="sellItem('${item.name}')" style="margin-left: 5px;">Sell</button>
         </li>
     `).join('');
     renderPartyManagement();
@@ -114,7 +116,12 @@ window.useItem = function(itemName) {
                     updateSidebar();
                     renderCharacterSheet();
                     showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `${member.name} restored 10 HP. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
-                    optionsDiv.innerHTML = ''; // Clear action buttons
+                   // Determine continue action based on combat state
+                   if (isInCombat && currentCombatResumeFunction) {
+                   optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
+                   } else {
+                   optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+                    }
                 }
             }
 
@@ -132,7 +139,12 @@ window.useItem = function(itemName) {
             updateSidebar();
             renderCharacterSheet();
             showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `All party members restored 5 HP from Healing Salve. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
-            optionsDiv.innerHTML = '';
+           // Determine continue action based on combat state
+           if (isInCombat && currentCombatResumeFunction) {
+           optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
+           } else {
+           optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+            }
         } else if (item.statBonus) {
             // Apply permanent stat bonus for equipment
             showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You equip the ${itemName}.`);
@@ -146,7 +158,12 @@ window.useItem = function(itemName) {
             inventory = inventory.filter(i => i.name !== itemName); // Item is equipped, remove from inventory
             updateSidebar();
             renderCharacterSheet();
-            optionsDiv.innerHTML = '';
+            // Determine continue action based on combat state
+            if (isInCombat && currentCombatResumeFunction) {
+            optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
+            } else {
+            optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+            }
         } else {
             // For items that don't have a direct "use" action or specific target (e.g., Map)
             showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You used the ${itemName}. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
@@ -156,7 +173,12 @@ window.useItem = function(itemName) {
             //     inventory = inventory.filter(i => i.name !== itemName);
             // }
             updateSidebar();
-            optionsDiv.innerHTML = '';
+            // Determine continue action based on combat state
+            if (isInCombat && currentCombatResumeFunction) {
+            optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
+            } else {
+            optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+            }
         }
     } else {
         showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You don't have any ${itemName} to use.`);
@@ -310,7 +332,7 @@ function characterCreator() {
             cha: rollStat()
         };
         const conMod = Math.floor((stats.con - 10) / 2);
-        const hp = 10 + conMod;
+        const hp = 15 + conMod;
 
         document.getElementById('rolledStats').innerHTML = `
             <p>
@@ -735,6 +757,9 @@ function getSkillsForClassAndLevel(charClass, charLevel) {
 // --- MODIFIED: Combat Rewards and Gold/Item Handling ---
 function partyCombat(enemyGroup, nextScene) {
     // Hide story image during combat
+    isInCombat = true;
+    currentCombatResumeFunction = nextTurn; // Assign the local nextTurn function
+
     storyImage.style.display = 'none';
     storyImage.src = '';
 
@@ -878,6 +903,9 @@ function partyCombat(enemyGroup, nextScene) {
                 setTimeout(showDeathScreen, 1200);
             }, 1200);
             inCombat = false;
+            // ... inside checkCombatEnd, inside combat lost block ...
+            isInCombat = false; // End combat state
+            currentCombatResumeFunction = null; // Clear resume function
             return true;
         }
         if (getAlive("enemy").length === 0) {
@@ -930,6 +958,9 @@ function partyCombat(enemyGroup, nextScene) {
                 };
             }, 1200);
             inCombat = false;
+            // ... inside checkCombatEnd, inside combat won block ...
+            isInCombat = false; // End combat state
+            currentCombatResumeFunction = null; // Clear resume function
             return true;
         }
         return false;
@@ -1895,7 +1926,7 @@ function rollEncounter() {
                     str: 18,
                     dex: 8,
                     int: 10,
-                    hp: 30 + dayCount * 2,
+                    hp: 20 + dayCount * 2,
                     portraitUrl: "images/golem.png",
                     knownSkills: ["Attack"]
                 }],
@@ -2363,7 +2394,7 @@ function finalBattle() {
             str: 12,
             dex: 14,
             int: 18,
-            hp: 32 + dayCount * 2,
+            hp: 20 + dayCount * 2,
             portraitUrl: "images/warlock.png",
             knownSkills: ["Dark Bolt", "Shadow Bind"]
         },
@@ -2374,7 +2405,7 @@ function finalBattle() {
             str: 18,
             dex: 12,
             int: 14,
-            hp: 30 + dayCount * 3,
+            hp: 20 + dayCount * 3,
             portraitUrl: "images/demon.png",
             knownSkills: ["Attack"] // Demons just attack for now
         }],
