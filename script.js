@@ -62,6 +62,9 @@ const currentEncounterDisplay = document.getElementById('current-encounter-displ
 const backgroundMusic = document.getElementById('background-music');
 const musicToggleButton = document.getElementById('music-toggle-button');
 
+// NEW DOM element for story image
+const storyImage = document.getElementById('story-image');
+
 
 // --- Utility Functions ---
 function updateSidebar() {
@@ -237,7 +240,13 @@ function getPortrait(character) {
     }
 }
 
-function showDialogue(speaker, text) {
+/**
+ * Displays dialogue and optionally an image for a story event.
+ * @param {object} speaker - The speaker object with name, icon, and portraitUrl.
+ * @param {string} text - The dialogue text.
+ * @param {string} [imageUrl] - Optional URL for an image to display with the dialogue.
+ */
+function showDialogue(speaker, text, imageUrl = null) {
     storyDiv.innerHTML = `
         <div class="chat-row" style="display:flex;align-items:flex-start;margin-bottom:10px;">
             <div style="flex-shrink:0;">${getPortrait(speaker)}</div>
@@ -246,6 +255,14 @@ function showDialogue(speaker, text) {
             </div>
         </div>
     `;
+
+    if (imageUrl) {
+        storyImage.src = imageUrl;
+        storyImage.style.display = 'block'; // Show the image
+    } else {
+        storyImage.style.display = 'none'; // Hide the image if no URL is provided
+        storyImage.src = ''; // Clear previous image
+    }
 }
 
 function getStoryPremise(name) {
@@ -256,6 +273,10 @@ Your journey begins as you receive a vision: a village is threatened by a rising
 }
 
 function characterCreator() {
+    // Clear any previous story image
+    storyImage.style.display = 'none';
+    storyImage.src = '';
+
     storyDiv.innerHTML = `<h2>Create Your Orc Paladin</h2>
         <label>Name: <input id="charName" maxlength="16" placeholder="Grushnak" /></label>
         <button id="rollStatsBtn">Roll Attributes</button>
@@ -343,6 +364,9 @@ function renderCharacterSheet() {
 
 
 function showDeathScreen() {
+    storyImage.style.display = 'none'; // Hide image on death screen
+    storyImage.src = '';
+
     storyDiv.innerHTML = `<h2 style="color:#e74c3c;font-size:2em;text-align:center;">💀 You Died 💀</h2>
         <p style="text-align:center;">Your journey ends here... for now.</p>`;
     optionsDiv.innerHTML = `
@@ -409,6 +433,10 @@ function showOptions(options) {
 
 // --- MODIFIED: Combat Rewards and Gold/Item Handling ---
 function partyCombat(enemyGroup, nextScene) {
+    // Hide story image during combat
+    storyImage.style.display = 'none';
+    storyImage.src = '';
+
     let combatLog = [];
     let turnOrder = [];
     let turnIndex = 0;
@@ -909,20 +937,20 @@ function rollEncounter() {
                 effect = () => renderCharacterSheet();
             } else {
                 encounter = "✨ You find a rare magical item that heals you (+5 HP)!";
-                effect = () => { player.hp += 5; showDialogue({ name: "System", icon: "⚙️" }, `You gain 5 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
+                effect = () => { player.hp += 5; showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You gain 5 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
             }
         } else {
             encounter = "✨ You find a rare magical item that heals you (+5 HP)!";
-            effect = () => { player.hp += 5; showDialogue({ name: "System", icon: "⚙️" }, `You gain 5 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
+            effect = () => { player.hp += 5; showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You gain 5 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
         }
     } else if (roll >= 16) {
         encounter = "😊 You meet a friendly traveler who shares food and stories. (+2 HP)";
-        effect = () => { player.hp += 2; showDialogue({ name: "System", icon: "⚙️" }, `You gain 2 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
+        effect = () => { player.hp += 2; showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You gain 2 HP!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP gain
     } else if (roll >= 11) {
         encounter = "🚶‍♂️ The road is quiet, and you make good progress.";
     } else if (roll >= 6) {
         encounter = "⚠️ You stumble into a minor trap and lose 2 HP.";
-        effect = () => { player.hp -= 2; showDialogue({ name: "System", icon: "⚙️" }, `You lose 2 HP from a trap!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP loss
+        effect = () => { player.hp -= 2; showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You lose 2 HP from a trap!`); renderCharacterSheet(); }; // MODIFIED: Added dialogue for HP loss
     } else if (roll > 1) {
         encounter = "👹 A monster ambushes you! (Party combat!)";
         effect = (nextScene) => {
@@ -1043,6 +1071,10 @@ function moveToArea(areaName, nextSceneCallback) {
     currentAreaWeather = weatherResult.weather; // Store for display in sidebar
     currentAreaEncounter = encounterResult.encounter; // Store for display in sidebar
 
+    // Clear story image when moving to a new area, unless a specific image is set by the next scene
+    storyImage.style.display = 'none';
+    storyImage.src = '';
+
     let areaIntroHtml = `<p><b>Entering ${areaName}</b></p>`;
     let weatherHtml = `<p><b>Weather:</b> ${currentAreaWeather}</p>`;
     let encounterHtml = `<p><b>Encounter:</b> ${currentAreaEncounter}</p>`;
@@ -1067,6 +1099,10 @@ function moveToArea(areaName, nextSceneCallback) {
 // NEW: Function to handle a day passing within the current area (no new weather/encounter roll)
 function advanceDayInArea(nextSectionCallback) {
     dayCount++;
+    // Clear story image when advancing day within an area
+    storyImage.style.display = 'none';
+    storyImage.src = '';
+
     showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `A day passes in ${currentArea}. It is now Day ${dayCount}.`);
     waitForContinue(nextSectionCallback);
     updateSidebar(); // Update day counter
@@ -1076,7 +1112,11 @@ function advanceDayInArea(nextSectionCallback) {
 // --- Insert setCheckpoint before each major section ---
 function mainGameStart() {
     setCheckpoint(mainGameStart);
-    storyDiv.innerHTML = `<p>${getStoryPremise(player.name)}</p>`;
+    // Initial image for game start
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        getStoryPremise(player.name),
+        "images/divinevision.png" // Placeholder image for vision
+    );
     showOptions([
         {
             text: "Begin your quest",
@@ -1091,7 +1131,10 @@ function mainGameStart() {
 
 function recruitParty() {
     setCheckpoint(recruitParty);
-    storyDiv.innerHTML = `<p>Before you set out, you may choose up to <b>three</b> companions to join you on your path of redemption.</p>`;
+    showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
+        `<p>Before you set out, you may choose up to <b>three</b> companions to join you on your path of redemption.</p>`,
+        "images/recruitparty.png" // Image for recruitment
+    );
     let chosen = [];
     availableMembers = allPartyMembers.filter(member => !party.some(p => p.name === member.name));
 
@@ -1122,7 +1165,8 @@ function recruitParty() {
     window.finishRecruitment = function() {
         showDialogue(
             { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-            `Your party is ready! You have chosen ${chosen.map(m => m.name).join(", ") || "no additional companions"}.`
+            `Your party is ready! You have chosen ${chosen.map(m => m.name).join(", ") || "no additional companions"}.`,
+            "images/readyparty.png" // Image for ready party
         );
         if (party[0] !== player) {
             party = [player, ...party.filter(m => m !== player)];
@@ -1139,7 +1183,8 @@ function firstVision() {
     setCheckpoint(firstVision);
     showDialogue(
         { name: player.name, icon: player.icon, portraitUrl: player.portraitUrl },
-        `That night, you dream of a burning village and hear a voice: "${player.name}, the innocent need your strength. Will you answer the call?"`
+        `That night, you dream of a burning village and hear a voice: "${player.name}, the innocent need your strength. Will you answer the call?"`,
+        "images/nightmare.png" // Image for vision
     );
     showOptions([
         {
@@ -1165,7 +1210,8 @@ function roadEncounter() {
     setCheckpoint(roadEncounter);
     showDialogue(
         { name: "Guard Captain", icon: "🛡️", portraitUrl: "images/guard1.png" },
-        `On the road to Greenhollow, a group of suspicious guards stops you. "Orc! State your business!"`
+        `On the road to Greenhollow, a group of suspicious guards stops you. "Orc! State your business!"`,
+        "images/roadguards.png" // Image for road guards
     );
     showOptions([
         {
@@ -1271,7 +1317,8 @@ function greenhollowArrival() {
     setCheckpoint(greenhollowArrival);
     showDialogue(
         { name: "Village Child", icon: "🧒", portraitUrl: "images/fhumchild1.png" },
-        `Please, my mother is trapped in the burning mill!`
+        `Please, my mother is trapped in the burning mill!`,
+        "images/burningmill.png" // Image for burning mill
     );
     showOptions([
         {
@@ -1321,7 +1368,8 @@ function darknessRevealed() {
     setCheckpoint(darknessRevealed);
     showDialogue(
         { name: "Warlock", portraitUrl: "images/warlock.png" },
-        `That night, a shadowy cult attacks the village. Their leader, a dark warlock, calls you out: "Orc! You do not belong here!"`
+        `That night, a shadowy cult attacks the village. Their leader, a dark warlock, calls you out: "Orc! You do not belong here!"`,
+        "images/warlockattack.png" // Image for warlock attack
     );
     showOptions([
         {
@@ -1371,7 +1419,8 @@ function redemption() {
     setCheckpoint(redemption);
     showDialogue(
         { name: "Priest", portraitUrl: "images/priest.png" },
-        `With the village safe, the people gather to thank you. The local priest offers you a blessing. "You have shown us that redemption is possible for all."`
+        `With the village safe, the people gather to thank you. The local priest offers you a blessing. "You have shown us that redemption is possible for all."`,
+        "images/blessing.png" // Image for blessing
     );
     showOptions([
         {
@@ -1401,7 +1450,8 @@ function finalBattle() {
     setCheckpoint(finalBattle);
     showDialogue(
         { name: "Narrator", icon: "📜" },
-        "As dawn breaks, the warlock returns, now a monstrous demon! The villagers cower. It is up to you and your companions to stand against the darkness."
+        "As dawn breaks, the warlock returns, now summons a monstrous demon! The villagers cower. It is up to you and your companions to stand against the darkness.",
+        "images/demonbattle.png" // Image for final battle
     );
     partyCombat({
         enemies: [{
@@ -1444,12 +1494,14 @@ function newChapterTown() {
     setCheckpoint(newChapterTown);
     showDialogue(
         { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "You arrive in the bustling town of Silverbrook. The streets are lively, but a shadow of unease hangs over the townsfolk."
+        "You arrive in the bustling town of Silverbrook. The streets are lively, but a shadow of unease hangs over the townsfolk.",
+        "images/silverbrook.png" // Image for Silverbrook
     );
     waitForContinue(() => {
         showDialogue(
             { name: "Innkeeper", icon: "🍺", portraitUrl: "images/innkeeper.png" },
-            "Welcome, travelers! Strange things have been happening at night. People are vanishing, and the mayor is desperate for help."
+            "Welcome, travelers! Strange things have been happening at night. People are vanishing, and the mayor is desperate for help.",
+            "images/inkeepertalk.png" // Image for innkeeper
         );
         optionsDiv.innerHTML = `<button id="townMysteryBtn">Investigate the mystery</button>`;
         document.getElementById('townMysteryBtn').onclick = () => {
@@ -1463,7 +1515,8 @@ function townMysteryInvestigation() {
     setCheckpoint(townMysteryInvestigation); // Added checkpoint for town investigation
     showDialogue(
         { name: "Mayor", icon: "🏛️", portraitUrl: "images/mayor.png" },
-        "Thank goodness you're here! Last night, the blacksmith disappeared. Can you help us find out what's happening?"
+        "Thank goodness you're here! Last night, the blacksmith disappeared. Can you help us find out what's happening?",
+        "images/mayorquest.png" // Image for mayor quest
     );
     showOptions([
         {
@@ -1509,7 +1562,8 @@ function townMysteryClue() {
     setCheckpoint(townMysteryClue); // Added checkpoint
     showDialogue(
         { name: "Party Member", icon: "🗡️", portraitUrl: party[1] ? party[1].portraitUrl : "images/narrator.png" }, // Use a random party member or narrator
-        "Maybe we should check the sewers. That's where trouble usually hides!"
+        "Maybe we should check the sewers. That's where trouble usually hides!",
+        "images/sewers.png" // Image for sewer entrance
     );
     // ADVANCE DAY WITHIN THE SAME AREA
     advanceDayInArea(() => sewerBattle());
@@ -1519,7 +1573,8 @@ function sewerBattle() {
     setCheckpoint(sewerBattle); // Added checkpoint for sewer battle
     showDialogue(
         { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "You descend into the dark, damp sewers. Suddenly, monstrous rats and a shadowy figure attack!"
+        "You descend into the dark, damp sewers. Suddenly, monstrous rats and a shadowy figure attack!",
+        "images/sewercombat.png" // Image for sewer combat
     );
     partyCombat({
         enemies: [
@@ -1589,7 +1644,8 @@ function newCompanionJoins() {
         updateSidebar();
         showDialogue(
             newCompanion,
-            "Thank you for saving me! I would be honored to join your party and help on your adventures."
+            "Thank you for saving me! I would be honored to join your party and help on your adventures.",
+            "images/lirajoining.png" // Image for new companion
         );
         rewardParty(0, {name: "Bard's Lute", quantity: 1, icon: "🎸"}); // No gold, just an item
     } else {
@@ -1604,7 +1660,8 @@ function newCompanionJoins() {
         optionsDiv.innerHTML = "";
         showDialogue(
             { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-            "With Silverbrook safe, you hear whispers of the grand city of Goldenspire, nestled beyond the ancient Whispering Woods. It's time for a new adventure!"
+            "With Silverbrook safe, you hear whispers of the grand city of Goldenspire, nestled beyond the ancient Whispering Woods. It's time for a new adventure!",
+            "images/goldenspireimagined.png" // Image for road to Goldenspire
         );
         moveToArea("Whispering Woods", startWhisperingWoodsJourney); // Rolls for weather/encounter for Whispering Woods
     };
@@ -1672,7 +1729,8 @@ function startWhisperingWoodsJourney() {
     setCheckpoint(startWhisperingWoodsJourney);
     forestDaysTraveled = 0; // Reset for this journey
     showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "You step into the Whispering Woods. The trees immediately close in, their canopy thick and ancient. The air is cooler, and strange calls echo from the depths."
+        "You step into the Whispering Woods. The trees immediately close in, their canopy thick and ancient. The air is cooler, and strange calls echo from the depths.",
+        "images/whisperingwoods.png" // Image for Whispering Woods
     );
     // This function is called by moveToArea, so the initial roll for entering the woods already occurred.
     waitForContinue(whisperingWoodsDay);
@@ -1710,7 +1768,8 @@ function forestEvent() {
         const characterRoll = rollDice(2);
         if (characterRoll === 1) {
             showDialogue({ name: "Mysterious Hermit", icon: "🧙", portraitUrl: "images/hermit.png" },
-                "Greetings, travelers. The woods whisper secrets only to those who listen. Beware the sunken crypt, its shadows stir."
+                "Greetings, travelers. The woods whisper secrets only to those who listen. Beware the sunken crypt, its shadows stir.",
+                "images/hermitforest.png" // Image for hermit
             );
             optionsDiv.innerHTML = `
                 <button onclick="askHermitForAdvice()">Ask for advice</button>
@@ -1732,7 +1791,8 @@ function forestEvent() {
             };
         } else {
             showDialogue({ name: "Lost Scout", icon: "🌲", portraitUrl: "images/scout.png" },
-                "Phew, glad to see friendly faces! I'm lost. Can you help me find my way to a clearer path?"
+                "Phew, glad to see friendly faces! I'm lost. Can you help me find my way to a clearer path?",
+                "images/lostscout.png" // Image for lost scout
             );
             optionsDiv.innerHTML = `
                 <button onclick="helpScout()">Help the Scout (DEX Check DC 12)</button>
@@ -1772,7 +1832,8 @@ function forestEvent() {
     } else if (eventRoll <= 8) {
         // Abandoned Crypt discovery
         showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-            "Deep within the woods, you stumble upon a crumbling stone structure, half-overgrown with moss and vines. It appears to be an abandoned crypt."
+            "Deep within the woods, you stumble upon a crumbling stone structure, half-overgrown with moss and vines. It appears to be an abandoned crypt.",
+            "images/crypt.png" // Image for crypt
         );
         optionsDiv.innerHTML = `
             <button onclick="exploreCrypt()">Explore the crypt</button>
@@ -1781,7 +1842,8 @@ function forestEvent() {
         window.exploreCrypt = function() {
             setCheckpoint(exploreCrypt); // Checkpoint before entering crypt
             showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-                "The air within the crypt is heavy and cold. Dust motes dance in the faint light. Ahead, a disturbed sarcophagus suggests recent activity..."
+                "The air within the crypt is heavy and cold. Dust motes dance in the faint light. Ahead, a disturbed sarcophagus suggests recent activity...",
+                "images/cryptinterior.png" // Image for inside crypt
             );
             waitForContinue(() => cryptEncounter());
         };
@@ -1792,7 +1854,8 @@ function forestEvent() {
     } else {
         // Resource finding mission
         showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-            "You notice some rare herbs growing nearby, or perhaps signs of small game."
+            "You notice some rare herbs growing nearby, or perhaps signs of small game.",
+            "images/resources.png" // Image for resources
         );
         optionsDiv.innerHTML = `
             <button onclick="gatherResources()">Gather Resources (WIS Check DC 11)</button>
@@ -1821,7 +1884,8 @@ function forestEvent() {
 function cryptEncounter() {
     setCheckpoint(cryptEncounter);
     showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "Suddenly, skeletal figures rise from the dust, guardians of the crypt!"
+        "Suddenly, skeletal figures rise from the dust, guardians of the crypt!",
+        "images/skeletalattack.png" // Image for crypt encounter
     );
     partyCombat({
         enemies: [
@@ -1847,7 +1911,8 @@ function cryptEncounter() {
 function findCryptTreasure() {
     setCheckpoint(findCryptTreasure);
     showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "Deeper in the crypt, you discover a hidden compartment containing an ancient, dusty chest."
+        "Deeper in the crypt, you discover a hidden compartment containing an ancient, dusty chest.",
+        "images/treasure.png" // Image for crypt treasure
     );
     optionsDiv.innerHTML = `
         <button onclick="attemptToOpenChest()">Attempt to open the chest (DEX Check DC 13)</button>
@@ -1876,7 +1941,8 @@ function findCryptTreasure() {
 function enterGoldenspireCity() {
     setCheckpoint(enterGoldenspireCity);
     showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "Finally, after days of travel through the Whispering Woods, the trees thin, and the grand spires of Goldenspire City gleam in the distance. You have arrived!"
+        "Finally, after days of travel through the Whispering Woods, the trees thin, and the grand spires of Goldenspire City gleam in the distance. You have arrived!",
+        "images/goldenspire.png" // Image for Goldenspire
     );
     optionsDiv.innerHTML = `
         <button onclick="exploreGoldenspire()">Explore Goldenspire City</button>
@@ -1887,7 +1953,8 @@ function enterGoldenspireCity() {
 function exploreGoldenspire() {
     setCheckpoint(exploreGoldenspire); // Added checkpoint
     showDialogue({ name: "Goldenspire Guard", icon: "💂", portraitUrl: "images/guard3.png" },
-        "Welcome to Goldenspire, travelers. May your stay be prosperous. Be wary of the rumors of strange disappearances near the outer walls."
+        "Welcome to Goldenspire, travelers. May your stay be prosperous. Be wary of the rumors of strange disappearances near the outer walls.",
+        "images/cityguardq.png" // Image for Goldenspire Guard
     );
     showOptions([
         { text: "Ask about the disappearances", action: () => {
@@ -1919,7 +1986,8 @@ function exploreGoldenspire() {
 function visitGoldenspireShop() {
     setCheckpoint(visitGoldenspireShop); // Added checkpoint
     showDialogue({ name: "Shopkeeper", icon: "🧑‍💼", portraitUrl: "images/shopkeeper.png" },
-        "Welcome to 'The Golden Hoard', where quality meets convenience!"
+        "Welcome to 'The Golden Hoard', where quality meets convenience!",
+        "images/cityshop.png" // Image for city shop
     );
     renderShop(); // Displays the shop items
     optionsDiv.innerHTML = `<button onclick="enterGoldenspireCity()">Leave Shop</button>`;
@@ -1928,7 +1996,8 @@ function visitGoldenspireShop() {
 function goldenspireMystery() {
     setCheckpoint(goldenspireMystery);
     showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "You decide to investigate the disappearances in Goldenspire City. Following the guard's vague directions, you find strange markings on an alley wall."
+        "You decide to investigate the disappearances in Goldenspire City. Following the guard's vague directions, you find strange markings on an alley wall.",
+        "images/strangemarking.png" // Image for mystery markings
     );
     showOptions([
         {
@@ -1973,7 +2042,8 @@ function goldenspireMystery() {
 function cultistLair() {
     setCheckpoint(cultistLair);
     showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-        "You arrive at the dilapidated temple, an ominous aura emanating from within. As you approach, cloaked figures emerge, chanting unsettling incantations!"
+        "You arrive at the dilapidated temple, an ominous aura emanating from within. As you approach, cloaked figures emerge, chanting unsettling incantations!",
+        "images/cultistlair.png" // Image for cultist lair
     );
     partyCombat({
         enemies: [
@@ -1986,7 +2056,8 @@ function cultistLair() {
         itemReward: {name: "Cultist Robe", quantity: 1, icon: "🧥"},
         onDefeat: () => {
             showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
-                "The cultists are defeated! You have saved the missing townsfolk and brought peace to Goldenspire."
+                "The cultists are defeated! You have saved the missing townsfolk and brought peace to Goldenspire.",
+                "images/cultistsdefeated.png" // Image for cultists defeated
             );
             optionsDiv.innerHTML = `<button id="chapterEndBtn">Conclude Chapter</button>`;
             document.getElementById('chapterEndBtn').onclick = () => {
@@ -2000,7 +2071,8 @@ function cultistLair() {
 function goldenspireQuests() {
     setCheckpoint(goldenspireQuests);
     showDialogue({ name: "Quest Board", icon: "📜", portraitUrl: "images/narrator.png" },
-        "The city quest board offers several tasks. What will you choose?"
+        "The city quest board offers several tasks. What will you choose?",
+        "images/questboard.png" // Image for quest board
     );
     showOptions([
         { text: "Clear Rat Infestation (Combat)", action: () => {
@@ -2036,6 +2108,10 @@ function goldenspireQuests() {
 
 
 function endGame(outcome) {
+    // Hide story image on game end
+    storyImage.style.display = 'none';
+    storyImage.src = '';
+
     if (outcome === "victory") {
         storyDiv.innerHTML = `<h2 style="color:#2ecc4c;font-size:2em;text-align:center;">🏆 Victory! 🏆</h2>
             <p style="text-align:center;">You have brought light to the dark corners of Eldoria. Your legend as the Orc Paladin will echo through the ages!</p>`;

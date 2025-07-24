@@ -6,7 +6,11 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Background Music Audio Tag -->
+    <!-- IMPORTANT: Replace the 'src' with your desired background music file.
+         This is a placeholder URL for demonstration purposes. -->
     <audio id="background-music" src="audio/fantasy-music-lumina-143991.mp3" loop></audio>
+
     <div id="start-screen">
         <h1>BALLAD OF THE ORC PALADIN</h1>
         <button id="startGameButton">Start Game</button>
@@ -16,46 +20,95 @@
         <div id="main-content">
             <h1>BALLAD OF THE ORC PALADIN</h1>
             <p id="description">A text-based adventure game where you play as an orc paladin.</p>
-            <div id="story"></div>
-            <div id="options"></div>
-            <div id="dice"></div>
-            <div id="character-sheet"></div>
+            <!-- NEW: Story Image Display -->
+            <div id="story-image-display" style="width: 100%; text-align: center; margin-bottom: 20px;">
+                <img id="story-image" src="" alt="Story Event Image" style="max-width: 100%; height: auto; border-radius: 10px; display: none;">
+            </div>
+            <div id="story">
+                <!-- Story content will be loaded here by JavaScript -->
+                <p>Welcome, adventurer. Prepare for your journey...</p>
+            </div>
+            <div id="options" class="flex flex-wrap justify-center">
+                <!-- Options will be loaded here by JavaScript -->
+            </div>
+            <div id="dice">
+                <!-- Dice roll results will be displayed here -->
+            </div>
         </div>
+
         <div id="sidebar">
+            <!-- Character Sheet Section (moved into its own dropdown for consistency) -->
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="character-sheet-content">Character Sheet <span class="dropdown-arrow">▼</span></h2>
+                <div id="character-sheet-content" class="dropdown-content">
+                    <div class="sidebar-section">
+                        <h3>Party</h3>
+                        <div id="character-sheet">
+                            <!-- Character sheet will be loaded here by JavaScript -->
+                            <p>Create your character to see details.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Location Section (now a dropdown for consistency) -->
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="location-info-content">Current Location <span class="dropdown-arrow">▼</span></h2>
+                <div id="location-info-content" class="dropdown-content">
+                    <div class="sidebar-section">
+                        <p>Area: <span id="current-area-display">The Starting Point</span></p>
+                        <p>Day: <span id="day-count-display">1</span></p>
+                        <p>Weather: <span id="current-weather-display">Clear skies</span></p>
+                        <p>Encounter: <span id="current-encounter-display">Peaceful surroundings</span></p>
+                    </div>
+                </div>
+            </div>
+
             <div class="dropdown">
                 <h2 class="dropdown-btn" data-target="inventory-section-content">Inventory <span class="dropdown-arrow">▼</span></h2>
                 <div id="inventory-section-content" class="dropdown-content">
-                    <p>Gold: <span id="gold-amount">0</span></p>
-                    <ul id="inventory-list"></ul>
+                    <div class="sidebar-section">
+                        <h3>Gold: <span id="gold-amount">0</span></h3>
+                        <h3>Items</h3>
+                        <ul id="inventory-list"></ul>
+                    </div>
                 </div>
             </div>
 
             <div class="dropdown">
                 <h2 class="dropdown-btn" data-target="party-management-section-content">Party Management <span class="dropdown-arrow">▼</span></h2>
                 <div id="party-management-section-content" class="dropdown-content">
-                    <h3>Current Party</h3>
-                    <div id="party-members"></div>
-                    <h3>Available Members</h3>
-                    <div id="available-members"></div>
+                    <div class="sidebar-section">
+                        <h3>Current Party</h3>
+                        <div id="party-members"></div>
+                        <h3>Available Members</h3>
+                        <div id="available-members"></div>
+                    </div>
                 </div>
             </div>
 
             <div class="dropdown">
                 <h2 class="dropdown-btn" data-target="shop-section-content">Shop <span class="dropdown-arrow">▼</span></h2>
                 <div id="shop-section-content" class="dropdown-content">
-                    <div id="shop-display"></div>
-                </div>
-            </div>
-            <div class="dropdown">
-                <h2 class="dropdown-btn" data-target="actions-section-content">Actions <span class="dropdown-arrow">▼</span></h2>
-                <div id="actions-section-content" class="dropdown-content">
-                    <button id="rest-button">Rest</button>
-                    <button id="map-button">Map</button>
-                    <div id="map-display">
-                        <img src="images/world_map.png" alt="World Map" style="width:100%; height:auto;">
+                    <div class="sidebar-section">
+                        <div id="shop-display"></div>
                     </div>
                 </div>
             </div>
+
+            <div class="dropdown">
+                <h2 class="dropdown-btn" data-target="actions-section-content">Actions <span class="dropdown-arrow">▼</span></h2>
+                <div id="actions-section-content" class="dropdown-content">
+                    <div class="sidebar-section">
+                        <button id="rest-button">Rest</button>
+                        <button id="map-button">Map</button>
+                        <div id="map-display">
+                            <img src="images/world_map.png" alt="World Map" style="width:100%; height:auto;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="dropdown">
                 <h2 class="dropdown-btn" data-target="settings-section-content">Settings <span class="dropdown-arrow">▼</span></h2>
                 <div id="settings-section-content" class="dropdown-content">
@@ -66,14 +119,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-    <div id="current-location">
-        <h3>Current Location</h3>
-        <p>Area: <span id="current-area-display">The Starting Point</span></p>
-        <p>Day: <span id="day-count-display">1</span></p>
-        <p>Weather: <span id="current-weather-display">Clear skies</span></p>
-        <p>Encounter: <span id="current-encounter-display">Peaceful surroundings</span></p>
         </div>
     </div>
 
