@@ -116,17 +116,27 @@ window.useItem = function(itemName) {
                     updateSidebar();
                     renderCharacterSheet();
                     showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `${member.name} restored 10 HP. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
-                   // Determine continue action based on combat state
-                   if (isInCombat && currentCombatResumeFunction) {
-                   optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
-                   } else {
-                   optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+                    // Determine continue action based on combat state
+                    if (isInCombat && currentCombatResumeFunction) {
+                        optionsDiv.innerHTML = ''; // Clear item use options
+                        currentCombatResumeFunction(); // This calls nextTurn()
+                    } else {
+                        optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
                     }
                 }
             }
 
             window.cancelAction = function() {
                 optionsDiv.innerHTML = '';
+                if (isInCombat && currentCombatResumeFunction) {
+                    // If cancelled during combat, it still consumes the turn.
+                    currentCombatResumeFunction();
+                } else {
+                    // If cancelled outside combat, return to previous state/options.
+                    // This might need more sophisticated state management depending on where it was called from.
+                    // For now, assume it returns to the last checkpoint.
+                    lastCheckpoint();
+                }
             }
         } else if (itemName === "Healing Salve") {
             party.forEach(member => {
@@ -139,11 +149,12 @@ window.useItem = function(itemName) {
             updateSidebar();
             renderCharacterSheet();
             showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `All party members restored 5 HP from Healing Salve. You now have ${item ? item.quantity : 0} ${itemName}(s) remaining.`); // MODIFIED: Added remaining quantity
-           // Determine continue action based on combat state
-           if (isInCombat && currentCombatResumeFunction) {
-           optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
-           } else {
-           optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+            // Determine continue action based on combat state
+            if (isInCombat && currentCombatResumeFunction) {
+                optionsDiv.innerHTML = ''; // Clear item use options
+                currentCombatResumeFunction(); // This calls nextTurn()
+            } else {
+                optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
             }
         } else if (item.statBonus) {
             // Apply permanent stat bonus for equipment
@@ -160,9 +171,10 @@ window.useItem = function(itemName) {
             renderCharacterSheet();
             // Determine continue action based on combat state
             if (isInCombat && currentCombatResumeFunction) {
-            optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
+                optionsDiv.innerHTML = ''; // Clear item use options
+                currentCombatResumeFunction(); // This calls nextTurn()
             } else {
-            optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+                optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
             }
         } else {
             // For items that don't have a direct "use" action or specific target (e.g., Map)
@@ -175,13 +187,17 @@ window.useItem = function(itemName) {
             updateSidebar();
             // Determine continue action based on combat state
             if (isInCombat && currentCombatResumeFunction) {
-            optionsDiv.innerHTML = `<button onclick="currentCombatResumeFunction()">Continue Combat</button>`;
+                optionsDiv.innerHTML = ''; // Clear item use options
+                currentCombatResumeFunction(); // This calls nextTurn()
             } else {
-            optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+                optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
             }
         }
     } else {
         showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `You don't have any ${itemName} to use.`);
+        if (!isInCombat) {
+            optionsDiv.innerHTML = `<button onclick="lastCheckpoint()">Continue</button>`;
+        }
     }
 }
 
@@ -431,18 +447,19 @@ function rollDice(sides = 20) {
 }
 
 function askDiceRoll(promptText, callback) {
+    optionsDiv.innerHTML = ''; // Clear options when asking for a roll
     diceDiv.innerHTML = `
         <p>${promptText}</p>
-        <button onclick="doDiceRoll(${callback})">Roll d20</button>
+        <button id="rollD20Btn">Roll d20</button>
     `;
-    window.doDiceRoll = function(cb) {
+    document.getElementById('rollD20Btn').onclick = function() { // Attach event listener directly
         const result = rollDice();
         diceDiv.innerHTML = `<p>You rolled a <strong>${result}</strong>!</p>`;
         setTimeout(() => {
-            diceDiv.innerHTML = '';
-            cb(result);
+            diceDiv.innerHTML = ''; // Clear dice display after roll
+            callback(result); // Execute the original callback
         }, 1200);
-    }.bind(null, callback);
+    };
 }
 
 function showOptions(options) {
@@ -459,7 +476,7 @@ function showOptions(options) {
                 } else {
                     opt.diceCheck.fail();
                 }
-            }); // Added closing parenthesis for askDiceRoll
+            });
         } else {
             opt.action();
         }
@@ -487,11 +504,15 @@ const gameSkills = {
         class: "Paladin",
         level: 2,
         type: "attack_heal",
-        effect: (caster, target, addLog) => {
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
             let attackRoll = rollDice(20) + Math.floor((caster.str - 10) / 2);
             let targetAC = 10 + Math.floor(((target.dex || 10) - 10) / 2);
             if (attackRoll >= targetAC) {
-                let dmg = rollDice(10) + Math.floor((caster.str - 10) / 2);
+                let dmg = (rollDice(10) + Math.floor((caster.str - 10) / 2)) * damageMultiplier;
+                if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                    dmg = Math.floor(dmg / 2);
+                    addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                }
                 target.currentHp -= dmg;
                 let heal = rollDice(4);
                 caster.currentHp = Math.min(caster.maxHp, caster.currentHp + heal);
@@ -533,9 +554,13 @@ const gameSkills = {
         class: "Fighter",
         level: 2,
         type: "attack_aoe",
-        effect: (caster, targets, addLog) => {
+        effect: (caster, targets, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
             targets.forEach(target => {
-                let dmg = rollDice(6) + Math.floor((caster.str - 10) / 2);
+                let dmg = (rollDice(6) + Math.floor((caster.str - 10) / 2)) * damageMultiplier;
+                if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check (though this is an enemy target, good to have consistent logic)
+                    dmg = Math.floor(dmg / 2);
+                    addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                }
                 target.currentHp -= dmg;
                 addLog(`🌀 <b>${caster.name}</b> unleashes a whirlwind attack on <b>${target.name}</b> for <b>${dmg}</b> damage.`);
             });
@@ -547,8 +572,12 @@ const gameSkills = {
         class: "Fighter",
         level: 3,
         type: "attack",
-        effect: (caster, target, addLog) => {
-            let dmg = rollDice(12) + rollDice(12) + Math.floor((caster.str - 10) / 2);
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
+            let dmg = (rollDice(12) + rollDice(12) + Math.floor((caster.str - 10) / 2)) * damageMultiplier;
+            if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                dmg = Math.floor(dmg / 2);
+                addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+            }
             target.currentHp -= dmg;
             addLog(`💀 <b>${caster.name}</b> executes <b>${target.name}</b> for <b>${dmg}</b> brutal damage!`);
         }
@@ -605,8 +634,12 @@ const gameSkills = {
         class: "Ranger",
         level: 1,
         type: "attack",
-        effect: (caster, target, addLog) => {
-            let dmg = rollDice(8) + Math.floor((caster.dex - 10) / 2);
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
+            let dmg = (rollDice(8) + Math.floor((caster.dex - 10) / 2)) * damageMultiplier;
+            if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                dmg = Math.floor(dmg / 2);
+                addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+            }
             target.currentHp -= dmg;
             addLog(`🏹 <b>${caster.name}</b> shoots an arrow at <b>${target.name}</b> for <b>${dmg}</b> damage.`);
         }
@@ -617,9 +650,13 @@ const gameSkills = {
         class: "Ranger",
         level: 2,
         type: "attack_aoe",
-        effect: (caster, targets, addLog) => {
+        effect: (caster, targets, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
             targets.forEach(target => {
-                let dmg = rollDice(4) + Math.floor((caster.dex - 10) / 2);
+                let dmg = (rollDice(4) + Math.floor((caster.dex - 10) / 2)) * damageMultiplier;
+                if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                    dmg = Math.floor(dmg / 2);
+                    addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                }
                 target.currentHp -= dmg;
                 addLog(`🏹 <b>${caster.name}</b> fires a volley at <b>${target.name}</b> for <b>${dmg}</b> damage.`);
             });
@@ -645,8 +682,12 @@ const gameSkills = {
         class: "Rogue",
         level: 1,
         type: "attack",
-        effect: (caster, target, addLog) => {
-            let dmg = rollDice(8) + 3;
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
+            let dmg = (rollDice(8) + 3) * damageMultiplier;
+            if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                dmg = Math.floor(dmg / 2);
+                addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+            }
             target.currentHp -= dmg;
             addLog(`🗡️ <b>${caster.name}</b> sneak attacks <b>${target.name}</b> for <b>${dmg}</b> damage!`);
         }
@@ -683,11 +724,15 @@ const gameSkills = {
         class: "Sorcerer",
         level: 1,
         type: "attack_multi",
-        effect: (caster, targets, addLog) => {
+        effect: (caster, targets, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
             let numDarts = 3;
             for (let i = 0; i < numDarts; i++) {
                 let target = targets[Math.floor(Math.random() * targets.length)]; // Randomly pick target for each dart
-                let dmg = rollDice(4) + 1;
+                let dmg = (rollDice(4) + 1) * damageMultiplier;
+                if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                    dmg = Math.floor(dmg / 2);
+                    addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                }
                 target.currentHp -= dmg;
                 addLog(`✨ <b>${caster.name}</b> launches a magic missile at <b>${target.name}</b> for <b>${dmg}</b> force damage.`);
             }
@@ -699,8 +744,12 @@ const gameSkills = {
         class: "Sorcerer",
         level: 2,
         type: "attack",
-        effect: (caster, target, addLog) => {
-            let dmg = rollDice(6) + rollDice(6);
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
+            let dmg = (rollDice(6) + rollDice(6)) * damageMultiplier;
+            if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                dmg = Math.floor(dmg / 2);
+                addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+            }
             target.currentHp -= dmg;
             addLog(`🔥 <b>${caster.name}</b> casts Fireball on <b>${target.name}</b> for <b>${dmg}</b> damage!`);
         }
@@ -711,12 +760,67 @@ const gameSkills = {
         class: "Sorcerer",
         level: 3,
         type: "attack_aoe",
-        effect: (caster, targets, addLog) => {
+        effect: (caster, targets, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
             targets.forEach(target => {
-                let dmg = rollDice(8) + Math.floor((caster.int - 10) / 2);
+                let dmg = (rollDice(8) + Math.floor((caster.int - 10) / 2)) * damageMultiplier;
+                if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                    dmg = Math.floor(dmg / 2);
+                    addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                }
                 target.currentHp -= dmg;
                 addLog(`⚡ <b>${caster.name}</b> strikes <b>${target.name}</b> with lightning for <b>${dmg}</b> damage.`);
             });
+        }
+    },
+    // --- NEW: Bard Skills ---
+    "Inspiring Performance": {
+        name: "Inspiring Performance",
+        description: "Heals an ally for 1d6 HP and grants them +1 to all attack rolls for 2 turns.",
+        class: "Human Bard", // Assuming "Human Bard" as the class name
+        level: 1,
+        type: "heal_buff_single",
+        targetSide: "party",
+        duration: 2,
+        effect: (caster, target, addLog) => {
+            let heal = rollDice(6);
+            target.currentHp = Math.min(target.maxHp, target.currentHp + heal);
+            addLog(`🎶 <b>${caster.name}</b> inspires <b>${target.name}</b>, healing for <b>${heal}</b> HP and boosting their morale!`);
+            target.inspiredTurns = 2; // Custom buff state
+        }
+    },
+    "Dissonant Whispers": {
+        name: "Dissonant Whispers",
+        description: "Deals 1d8 psychic damage to an enemy and reduces their DEX by 2 for 2 turns.",
+        class: "Human Bard",
+        level: 2,
+        type: "attack_debuff",
+        targetSide: "enemy",
+        duration: 2,
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => {
+            let dmg = (rollDice(8) + Math.floor((caster.int - 10) / 2)) * damageMultiplier; // Bards use INT for spells
+            if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                dmg = Math.floor(dmg / 2);
+                addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+            }
+            target.currentHp -= dmg;
+            addLog(`🗣️ <b>${caster.name}</b> whispers dissonant words to <b>${target.name}</b> for <b>${dmg}</b> psychic damage, unsettling them!`);
+            target.dissonantTurns = 2; // Custom debuff state
+        }
+    },
+    "Song of Rest": {
+        name: "Song of Rest",
+        description: "Restores 1d10 HP to all party members.",
+        class: "Human Bard",
+        level: 3,
+        type: "heal_aoe",
+        targetSide: "party",
+        effect: (caster, partyCombatants, enemyCombatants, addLog) => {
+            partyCombatants.forEach(m => {
+                let heal = rollDice(10);
+                m.currentHp = Math.min(m.maxHp, m.currentHp + heal);
+                addLog(`🎶 <b>${caster.name}</b> sings a Song of Rest, healing <b>${m.name}</b> for <b>${heal}</b> HP.`);
+            });
+            addLog(`🎶 <b>${caster.name}</b> performs a soothing Song of Rest!`);
         }
     },
 
@@ -727,8 +831,12 @@ const gameSkills = {
         class: "Warlock",
         level: 1, // Monsters don't level up, but skills are tied to a level for consistency
         type: "attack",
-        effect: (caster, target, addLog) => {
-            let dmg = rollDice(10);
+        effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => { // Added damageMultiplier
+            let dmg = rollDice(10) * damageMultiplier;
+            if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                dmg = Math.floor(dmg / 2);
+                addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+            }
             target.currentHp -= dmg;
             addLog(`💀 <b>${caster.name}</b> casts Dark Bolt on <b>${target.name}</b> for <b>${dmg}</b> damage!`);
         }
@@ -758,8 +866,9 @@ function getSkillsForClassAndLevel(charClass, charLevel) {
 function partyCombat(enemyGroup, nextScene) {
     // Hide story image during combat
     isInCombat = true;
-    currentCombatResumeFunction = nextTurn; // Assign the local nextTurn function
-
+    currentCombatResumeFunction = function() {
+        nextTurn();
+    };
     storyImage.style.display = 'none';
     storyImage.src = '';
 
@@ -966,629 +1075,15 @@ function partyCombat(enemyGroup, nextScene) {
         return false;
     }
 
-    function applySkillEffect(skill, caster, target, addLog, partyCombatants, enemyCombatants) {
+    function applySkillEffect(skill, caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) {
         // This function will execute the skill's effect
-        if (skill.type === "attack" || skill.type === "attack_aoe" || skill.type === "attack_multi" || skill.type === "attack_heal") {
-            // Check for Charge effect before applying skill damage
-            let damageMultiplier = 1;
+        if (skill.type.startsWith("attack")) {
+            // Check for Charge effect before applying skill damage (only for caster's attacks)
             if (caster.chargeActive) {
                 damageMultiplier = 2;
                 caster.chargeActive = false; // Consume charge
                 addLog(`💥 <b>${caster.name}</b>'s Charge doubles the damage!`);
             }
-            // Apply Hunter's Mark bonus if target is marked
-            if (target && target.huntersMarkTurns > 0) {
-                addLog(`🎯 <b>${target.name}</b> takes extra damage from Hunter's Mark!`);
-                target.currentHp -= 2; // Apply flat +2 damage
-            }
-
-            // Apply skill effect
-            skill.effect(caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier);
-
-        } else if (skill.type === "buff_party" || skill.type === "buff_self" || skill.type === "buff_single" || skill.type === "heal_single" || skill.type === "heal_aoe" || skill.type === "debuff_single") {
-            skill.effect(caster, target, addLog, partyCombatants, enemyCombatants);
-        }
-    }
-
-    function getAvailableActions(combatant) {
-        let actions = [];
-        // Basic attack is always available
-        actions.push({
-            name: "Attack",
-            desc: "Attack a foe with your weapon.",
-            type: "attack",
-            effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => {
-                let attackRoll = rollDice(20) + Math.floor((caster.str - 10) / 2);
-                let targetAC = 10 + Math.floor(((target.dex || 10) - 10) / 2);
-                if (target.shieldOfFaithTurns > 0) { // Shield of Faith AC bonus
-                    targetAC += 2;
-                }
-                // Apply Aura of Courage bonus to attack roll
-                if (caster.courageAuraTurns > 0) {
-                    attackRoll += 2;
-                }
-
-                if (attackRoll - Math.floor((caster.str - 10) / 2) === 20) { // Natural 20
-                    let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2) + 2) * damageMultiplier;
-                    target.currentHp -= dmg;
-                    addLog(`💥 <b>${caster.name}</b> (CRIT) hits <b>${target.name}</b> for <b>${dmg}</b> damage!`);
-                } else if (attackRoll >= targetAC) {
-                    let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2)) * damageMultiplier;
-                    target.currentHp -= dmg;
-                    addLog(`🗡️ <b>${caster.name}</b> hits <b>${target.name}</b> for <b>${dmg}</b> damage.`);
-                } else {
-                    addLog(`❌ <b>${caster.name}</b> misses <b>${target.name}</b>.`);
-                }
-            }
-        });
-
-        // Add active skills if it's a party member
-        if (combatant.side === "party") {
-            combatant.activeSkills.forEach(skillName => {
-                const skill = gameSkills[skillName];
-                if (skill) {
-                    actions.push({
-                        name: skill.name,
-                        desc: skill.description,
-                        type: skill.type,
-                        targetSide: skill.targetSide, // For targeting UI
-                        effect: (caster, target, addLog) => applySkillEffect(skill, caster, target, addLog, partyCombatants, enemyCombatants)
-                    });
-                }
-            });
-        } else { // For enemies, use their known skills directly
-            combatant.knownSkills.forEach(skillName => {
-                const skill = gameSkills[skillName];
-                if (skill) {
-                    actions.push({
-                        name: skill.name,
-                        desc: skill.description,
-                        type: skill.type,
-                        targetSide: skill.targetSide,
-                        effect: (caster, target, addLog) => applySkillEffect(skill, caster, target, addLog, partyCombatants, enemyCombatants)
-                    });
-                }
-            });
-        }
-        return actions;
-    }
-
-    function nextTurn() {
-        if (!inCombat) return;
-
-        // Apply end-of-turn effects and decrement durations
-        allCombatants.forEach(c => {
-            if (c.sanctuaryTurns > 0) c.sanctuaryTurns--;
-            if (c.shieldOfFaithTurns > 0) c.shieldOfFaithTurns--;
-            if (c.courageAuraTurns > 0) c.courageAuraTurns--;
-            if (c.huntersMarkTurns > 0) c.huntersMarkTurns--;
-            if (c.shadowBindTurns > 0) c.shadowBindTurns--;
-            if (c.vanishTurns > 0) {
-                c.vanishTurns--;
-                if (c.vanishTurns === 0) {
-                    addLog(`✨ <b>${c.name}</b> emerges from Vanish.`);
-                }
-            }
-            if (c.shadowStepActive) { // Shadow step is consumed on next attack or end of turn if no attack
-                c.shadowStepActive = false;
-            }
-        });
-
-        while (turnIndex < turnOrder.length && turnOrder[turnIndex].currentHp <= 0) {
-            turnIndex++;
-        }
-        if (turnIndex >= turnOrder.length) {
-            turnIndex = 0;
-            turnOrder = turnOrder.filter(c => c.currentHp > 0);
-            turnOrder.sort((a, b) => b.initiative - a.initiative);
-            if (checkCombatEnd()) return;
-        }
-        const current = turnOrder[turnIndex];
-        renderCombat();
-
-        // Check if character is vanished and cannot attack
-        if (current.vanishTurns > 0 && current.side === "party") {
-            addLog(`👻 <b>${current.name}</b> is Vanished and cannot act this turn.`);
-            turnIndex++;
-            setTimeout(nextTurn, 800);
-            return;
-        }
-
-        if (current.side === "party" && current.currentHp > 0) {
-            addLog(`<b style="color:#fff;">${current.name}'s turn!</b>`);
-            renderCombat();
-            let actions = getAvailableActions(current);
-            let actionButtons = actions.map((action, i) =>
-                `<button onclick="chooseCombatAction(${i})">${action.name}</button>`
-            ).join(' ');
-            optionsDiv.innerHTML = `<div><b>Choose action:</b> ${actionButtons}</div>`;
-
-            window.chooseCombatAction = function(actionIdx) {
-                optionsDiv.innerHTML = "";
-                let action = actions[actionIdx];
-                let targets = [];
-
-                if (action.targetSide === "party") {
-                    targets = getAlive("party");
-                } else if (action.targetSide === "enemy") {
-                    targets = getAlive("enemy");
-                } else { // Default targeting
-                    targets = current.side === "party" ? getAlive("enemy") : getAlive("party");
-                }
-
-                if (action.type === "attack_aoe" || action.type === "attack_multi" || action.type === "heal_aoe") {
-                    // AOE/Multi-target skills don't need specific target selection UI
-                    action.effect(current, targets, addLog); // Pass all relevant targets
-                    if (checkCombatEnd()) return;
-                    turnIndex++;
-                    setTimeout(nextTurn, 800);
-                }
-                else if (targets.length === 1) {
-                    action.effect(current, targets[0], addLog);
-                    if (checkCombatEnd()) return;
-                    turnIndex++;
-                    setTimeout(nextTurn, 800);
-                } else {
-                    optionsDiv.innerHTML = `<div><b>Choose target:</b> ${
-                        targets.map((t, j) =>
-                            `<button onclick="doCombatAction(${actionIdx},${j})">${t.name}</button>`
-                        ).join(' ')
-                    }</div>`;
-                    window.doCombatAction = function(aIdx, tIdx) {
-                        optionsDiv.innerHTML = "";
-                        actions[aIdx].effect(current, targets[tIdx], addLog);
-                        if (checkCombatEnd()) return;
-                        turnIndex++;
-                        setTimeout(nextTurn, 800);
-                    };
-                }
-            };
-        }
-        else if (current.side === "enemy" && current.currentHp > 0) {
-            // Check if enemy is vanished (e.g., if a rogue used Vanish on them)
-            if (current.vanishTurns > 0) {
-                addLog(`👻 <b>${current.name}</b> is Vanished and cannot act this turn.`);
-                turnIndex++;
-                setTimeout(nextTurn, 800);
-                return;
-            }
-
-            // Shield effect for Fighter: nullifies next enemy attack
-            let shieldedMember = partyCombatants.find(m => m.shielded);
-            if (shieldedMember) {
-                addLog(`🛡️ <b>${shieldedMember.name}</b>'s Shield nullifies the enemy attack!`);
-                shieldedMember.shielded = false;
-                turnIndex++;
-                setTimeout(nextTurn, 800);
-                return;
-            }
-            addLog(`<b style="color:#fff;">${current.name}'s turn!</b>`);
-            renderCombat();
-            let actions = getAvailableActions(current);
-            let action = actions[Math.floor(Math.random() * actions.length)]; // Enemy picks a random action
-            let targets = [];
-
-            if (action.targetSide === "enemy") {
-                targets = getAlive("enemy");
-            } else if (action.targetSide === "party") {
-                targets = getAlive("party");
-            } else { // Default targeting for enemies is party
-                targets = getAlive("party");
-            }
-
-            // Filter out untargetable party members (e.g., from Shadow Step)
-            if (action.type === "attack" || action.type === "attack_aoe" || action.type === "attack_multi") {
-                targets = targets.filter(t => !t.shadowStepActive);
-                if (targets.length === 0) { // No valid targets, enemy skips turn
-                    addLog(`<b>${current.name}</b> has no valid targets and skips its turn.`);
-                    turnIndex++;
-                    setTimeout(nextTurn, 800);
-                    return;
-                }
-            }
-
-
-            let target = targets[Math.floor(Math.random() * targets.length)]; // Enemy picks a random target
-            setTimeout(() => {
-                applySkillEffect(action, current, target, addLog, partyCombatants, enemyCombatants);
-                if (checkCombatEnd()) return;
-                turnIndex++;
-                setTimeout(nextTurn, 800);
-            }, 800);
-        }
-        else {
-            turnIndex++;
-            setTimeout(nextTurn, 100);
-        }
-    }
-
-    addLog(`<i>Party initiative: ${partyInit}, Enemy initiative: ${enemyInit}</i>`);
-    addLog(`<i>Initiative order: ${turnOrder.map(c => c.name).join(", ")}</i>`);
-    renderCombat();
-    setTimeout(nextTurn, 1200);
-}
-
-// --- NEW: Level Up System Functions ---
-function levelUpParty(nextSceneCallback) {
-    // Clear story image during level up
-    storyImage.style.display = 'none';
-    storyImage.src = '';
-
-    player.level++;
-    player.availableStatPoints += 3; // Award 3 stat points to player
-
-    showDialogue({ name: "System", icon: "✨", portraitUrl: "images/narrator.png" }, `
-        <h2 style="color:#2ecc40;text-align:center;">🎉 Congratulations! 🎉</h2>
-        <p style="text-align:center;font-size:1.2em;">Your party has reached Level ${player.level}!</p>
-        <p style="text-align:center;">Click 'Continue' to distribute stat points and learn new skills.</p>
-    `);
-    optionsDiv.innerHTML = `<button onclick="proceedToLevelUpScreen('${nextSceneCallback.name}')">Continue</button>`;
-}
-
-window.proceedToLevelUpScreen = function(nextSceneName) {
-    const nextSceneCallback = window[nextSceneName]; // Get function reference from its name
-
-    let levelUpHtml = `
-        <h2 style="color:#2ecc40;text-align:center;">Level Up! (Level ${player.level})</h2>
-        <p>Distribute ${player.availableStatPoints} stat points for ${player.name}:</p>
-        <div id="stat-distribution" style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Strength (STR): ${player.str}</span>
-                <button onclick="addStatPoint('str')">+</button>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Dexterity (DEX): ${player.dex}</span>
-                <button onclick="addStatPoint('dex')">+</button>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Intelligence (INT): ${player.int}</span>
-                <button onclick="addStatPoint('int')">+</button>
-            </div>
-        </div>
-        <p>Each party member gains 1d8 HP!</p>
-        <div id="hp-roll-results"></div>
-        <p>New skills learned by your party:</p>
-        <ul id="new-skills-list"></ul>
-        <button id="confirmLevelUpBtn" onclick="confirmLevelUp('${nextSceneName}')">Confirm Level Up</button>
-    `;
-    storyDiv.innerHTML = levelUpHtml;
-    optionsDiv.innerHTML = ''; // Clear options during level up
-
-    // Roll HP for all party members
-    let hpRollResults = '';
-    party.forEach(member => {
-        const hpGain = rollDice(8);
-        member.maxHp += hpGain;
-        member.hp = member.maxHp; // Heal to full on level up
-        hpRollResults += `<p>${member.name} gained ${hpGain} HP! (New Max HP: ${member.maxHp})</p>`;
-    });
-    document.getElementById('hp-roll-results').innerHTML = hpRollResults;
-
-    // Discover new skills for each party member
-    let newSkillsHtml = '';
-    party.forEach(member => {
-        const newlyLearnedSkills = Object.values(gameSkills).filter(skill =>
-            skill.class === member.class && skill.level === member.level && !member.knownSkills.includes(skill.name)
-        );
-        if (newlyLearnedSkills.length > 0) {
-            newSkillsHtml += `<li><b>${member.name} (${member.class}):</b>`;
-            newlyLearnedSkills.forEach(skill => {
-                member.knownSkills.push(skill.name);
-                newSkillsHtml += ` <i>${skill.name}</i> (${skill.description})`;
-            });
-            newSkillsHtml += `</li>`;
-        }
-    });
-    document.getElementById('new-skills-list').innerHTML = newSkillsHtml || '<li>No new skills this level.</li>';
-
-    renderCharacterSheet(); // Update character sheet with new HP
-    updateSidebar(); // Update sidebar to reflect level and new skill options
-};
-
-window.addStatPoint = function(stat) {
-    if (player.availableStatPoints > 0) {
-        player[stat]++;
-        player.availableStatPoints--;
-        // Re-render the stat distribution section
-        document.getElementById('stat-distribution').innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Strength (STR): ${player.str}</span>
-                <button onclick="addStatPoint('str')">+</button>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Dexterity (DEX): ${player.dex}</span>
-                <button onclick="addStatPoint('dex')">+</button>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>Intelligence (INT): ${player.int}</span>
-                <button onclick="addStatPoint('int')">+</button>
-            </div>
-        `;
-        renderCharacterSheet(); // Update char sheet to show new stats
-    }
-    // Disable button if no points left
-    if (player.availableStatPoints === 0) {
-        document.querySelectorAll('#stat-distribution button').forEach(btn => btn.disabled = true);
-    }
-};
-
-window.confirmLevelUp = function(nextSceneName) {
-    // Ensure all stat points are distributed (optional, could force it)
-    if (player.availableStatPoints > 0) {
-        showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, "Please distribute all your stat points before continuing.");
-        return;
-    }
-
-    // Auto-equip skills if activeSkills array is less than 2
-    party.forEach(member => {
-        if (member.activeSkills.length < 2) {
-            member.knownSkills.forEach(skillName => {
-                if (!member.activeSkills.includes(skillName) && member.activeSkills.length < 2) {
-                    member.activeSkills.push(skillName);
-                }
-            });
-        }
-    });
-
-    updateSidebar(); // Final update after all changes
-    const nextSceneCallback = window[nextSceneName];
-    if (typeof nextSceneCallback === "function") {
-        nextSceneCallback();
-    } else {
-        // Fallback if nextSceneCallback is not found
-        showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, "Level up complete. Proceeding with the adventure!");
-        waitForContinue(mainGameStart); // Or a default scene
-    }
-};
-
-// --- NEW: Render Skill Selection in Sidebar ---
-function renderSkillSelection() {
-    if (!skillSelectionDiv || !player) return;
-
-    let html = `<h3>Active Combat Skills (Max 2)</h3>`;
-    party.forEach(member => {
-        html += `<h4>${member.name} (${member.class})</h4>`;
-        if (member.knownSkills.length === 0) {
-            html += `<p>No skills learned yet.</p>`;
-        } else {
-            html += `<div style="display:flex; flex-wrap:wrap; gap:5px;">`;
-            member.knownSkills.forEach(skillName => {
-                const skill = gameSkills[skillName];
-                if (skill) {
-                    const isActive = member.activeSkills.includes(skillName);
-                    html += `
-                        <button
-                            class="skill-toggle-btn ${isActive ? 'active' : ''}"
-                            onclick="toggleActiveSkill('${member.name}', '${skillName}')"
-                            title="${skill.description}"
-                        >
-                            ${skill.name}
-                        </button>
-                    `;
-                }
-            });
-            html += `</div>`;
-        }
-    });
-    skillSelectionDiv.innerHTML = html;
-}
-
-window.toggleActiveSkill = function(memberName, skillName) {
-    const member = party.find(m => m.name === memberName);
-    if (!member) return;
-
-    const index = member.activeSkills.indexOf(skillName);
-    if (index > -1) {
-        // Skill is active, deactivate it
-        member.activeSkills.splice(index, 1);
-    } else {
-        // Skill is not active, activate it if space available
-        if (member.activeSkills.length < 2) {
-            member.activeSkills.push(skillName);
-        } else {
-            showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `${member.name} can only have 2 active skills at a time.`);
-        }
-    }
-    renderSkillSelection(); // Re-render to update buttons
-};
-
-
-// --- MODIFIED: Combat Rewards and Gold/Item Handling ---
-function partyCombat(enemyGroup, nextScene) {
-    // Hide story image during combat
-    storyImage.style.display = 'none';
-    storyImage.src = '';
-
-    let combatLog = [];
-    let turnOrder = [];
-    let turnIndex = 0;
-    let inCombat = true;
-    let goldGained = 0; // Track gold gained in this combat
-    let itemsFound = []; // Track items found in this combat
-
-    const partyCombatants = party.map((m, i) => ({
-        ...m,
-        side: "party",
-        idx: i,
-        currentHp: m.hp,
-        isAlive: function() { return this.currentHp > 0; },
-        // Combat-specific temporary states
-        sanctuaryTurns: 0,
-        chargeActive: false,
-        shieldOfFaithTurns: 0,
-        courageAuraTurns: 0,
-        huntersMarkTurns: 0,
-        shadowStepActive: false,
-        vanishTurns: 0,
-    }));
-    const enemyCombatants = enemyGroup.enemies.map((e, i) => ({
-        ...e,
-        side: "enemy",
-        idx: i,
-        currentHp: e.hp,
-        maxHp: e.hp,
-        isAlive: function() { return this.currentHp > 0; },
-        // Combat-specific temporary states for enemies
-        shadowBindTurns: 0
-    }));
-
-    function rollInitiativeGroup(combatants) {
-        return rollDice(20) + Math.max(...combatants.map(c => Math.floor((c.dex || 10) / 2)));
-    }
-    let partyInit, enemyInit;
-    do {
-        partyInit = rollInitiativeGroup(partyCombatants);
-        enemyInit = rollInitiativeGroup(enemyCombatants);
-    } while (partyInit === enemyInit);
-
-    let allCombatants = [...partyCombatants, ...enemyCombatants];
-    allCombatants.forEach(c => {
-        let dexMod = Math.floor((c.dex || 10) / 2);
-        // Apply Aura of Courage bonus if active
-        if (c.side === "party" && c.courageAuraTurns > 0) {
-            dexMod += 2; // Courage Aura adds to attack rolls, not initiative, but we can simulate it here for simplicity
-        }
-        c.initiative = rollDice(20) + dexMod;
-    });
-    allCombatants.sort((a, b) => b.initiative - a.initiative);
-
-    if (enemyInit > partyInit) {
-        allCombatants.sort((a, b) => {
-            if (b.initiative === a.initiative) {
-                return a.side === "enemy" ? -1 : 1;
-            }
-            return b.initiative - a.initiative;
-        });
-    } else {
-        allCombatants.sort((a, b) => {
-            if (b.initiative === a.initiative) {
-                return a.side === "party" ? -1 : 1;
-            }
-            return b.initiative - a.initiative;
-        });
-    }
-    turnOrder = allCombatants;
-
-    function addLog(html) {
-        combatLog.push(html);
-        if (combatLog.length > 10) combatLog.shift();
-    }
-
-    function renderCombat() {
-        let partyStatus = partyCombatants.map(m => `
-            <div class="character" style="display:flex;align-items:center;margin-bottom:6px;">
-                ${getPortrait(m)}
-                <div>
-                    <strong>${m.name}</strong> (${m.class}) Lv.${m.level}<br>
-                    HP: <span class="hp-text ${m.currentHp <= m.maxHp / 4 ? 'low-hp' : ''}">${Math.max(0, m.currentHp)}</span> / ${m.maxHp}
-                    ${m.sanctuaryTurns > 0 ? ' <span style="color:#8af;">(Sanctuary: ' + m.sanctuaryTurns + 't)</span>' : ''}
-                    ${m.chargeActive ? ' <span style="color:#f88;">(Charging)</span>' : ''}
-                    ${m.shieldOfFaithTurns > 0 ? ' <span style="color:#8af;">(Shielded: ' + m.shieldOfFaithTurns + 't)</span>' : ''}
-                    ${m.courageAuraTurns > 0 ? ' <span style="color:#8f8;">(Courage: ' + m.courageAuraTurns + 't)</span>' : ''}
-                    ${m.shadowStepActive ? ' <span style="color:#aaa;">(Shadow Step)</span>' : ''}
-                    ${m.vanishTurns > 0 ? ' <span style="color:#aaa;">(Vanished: ' + m.vanishTurns + 't)</span>' : ''}
-                </div>
-            </div>
-        `).join('');
-        let enemyStatus = enemyCombatants.map(e => `
-            <div class="character" style="display:flex;align-items:center;margin-bottom:6px;">
-                ${getPortrait(e)}
-                <div>
-                    <strong>${e.name}</strong> (${e.class || "Monster"})<br>
-                    HP: <span class="hp-text ${e.currentHp <= e.maxHp / 4 ? 'low-hp' : ''}">${Math.max(0, e.currentHp)}</span> / ${e.maxHp}
-                    ${e.huntersMarkTurns > 0 ? ' <span style="color:#f88;">(Marked: ' + e.huntersMarkTurns + 't)</span>' : ''}
-                    ${e.shadowBindTurns > 0 ? ' <span style="color:#f88;">(Bound: ' + e.shadowBindTurns + 't)</span>' : ''}
-                </div>
-            </div>
-        `).join('');
-        let logHtml = combatLog.map(l => `<div>${l}</div>`).join('');
-        storyDiv.innerHTML = `
-            <h2>⚔️ Combat Encounter</h2>
-            <p>${enemyGroup.desc}</p>
-            <div style="display:flex;gap:30px;flex-wrap:wrap;">
-                <div style="min-width:220px;"><b>Your Party</b>${partyStatus}</div>
-                <div style="min-width:220px;"><b>Enemies</b>${enemyStatus}</div>
-            </div>
-            <div style="margin-top:12px;max-height:120px;overflow:auto;background:#111;padding:8px;border-radius:6px;">
-                ${logHtml}
-            </div>
-        `;
-    }
-
-    function getAlive(side) {
-        return (side === "party" ? partyCombatants : enemyCombatants).filter(c => c.currentHp > 0);
-    }
-
-    function checkCombatEnd() {
-        if (getAlive("party").length === 0) {
-            addLog(`<b style="color:#e74c3c;">Combat lost</b>`);
-            renderCombat();
-            setTimeout(() => {
-                showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "Combat lost");
-                optionsDiv.innerHTML = "";
-                setTimeout(showDeathScreen, 1200);
-            }, 1200);
-            inCombat = false;
-            return true;
-        }
-        if (getAlive("enemy").length === 0) {
-            addLog(`<b style="color:#2ecc40;">Combat won</b>`);
-            // --- MODIFIED: Combat Rewards ---
-            const currentGoldReward = enemyGroup.goldReward || (rollDice(10) + 5);
-            gold += currentGoldReward;
-            goldGained += currentGoldReward;
-            addLog(`You are rewarded with ${currentGoldReward} gold.`);
-
-            if (enemyGroup.itemReward) {
-                addItemToInventory(enemyGroup.itemReward.name, enemyGroup.itemReward.quantity, enemyGroup.itemReward.icon);
-                itemsFound.push(enemyGroup.itemReward);
-                addLog(`You found a ${enemyGroup.itemReward.name}!`);
-            } else {
-                const potionChance = rollDice(4);
-                if (potionChance === 4) {
-                    addItemToInventory("Health Potion", 1, "🧪");
-                    itemsFound.push({ name: "Health Potion", quantity: 1, icon: "🧪" });
-                    addLog(`You found a Health Potion!`);
-                }
-            }
-            // --- END MODIFIED: Combat Rewards ---
-
-            // --- FIX: Update original party members' HP from combat results ---
-            partyCombatants.forEach(combatant => {
-                if (combatant.side === 'party') {
-                    const originalMember = party.find(p => p.name === combatant.name);
-                    if (originalMember) {
-                        originalMember.hp = combatant.currentHp > 0 ? combatant.currentHp : 0;
-                    }
-                }
-            });
-
-            updateSidebar();
-            renderCharacterSheet();
-            renderCombat();
-
-            setTimeout(() => {
-                let rewardsSummary = `Combat won! You gained ${goldGained} gold.`;
-                if (itemsFound.length > 0) {
-                    rewardsSummary += ` You also found: ${itemsFound.map(item => `${item.quantity} ${item.name}`).join(', ')}.`;
-                }
-                showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, rewardsSummary); // MODIFIED: Added detailed reward message
-                optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
-                document.getElementById('combatContinueBtn').onclick = () => {
-                    optionsDiv.innerHTML = "";
-                    if (enemyGroup.onDefeat) enemyGroup.onDefeat();
-                    if (typeof nextScene === "function") nextScene();
-                };
-            }, 1200);
-            inCombat = false;
-            return true;
-        }
-        return false;
-    }
-
-    function applySkillEffect(skill, caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) {
-        // This function will execute the skill's effect
-        if (skill.type.startsWith("attack")) {
             // Apply Hunter's Mark bonus if target is marked
             if (target && target.huntersMarkTurns > 0) {
                 addLog(`🎯 <b>${target.name}</b> takes extra damage from Hunter's Mark!`);
@@ -1627,10 +1122,18 @@ function partyCombat(enemyGroup, nextScene) {
 
                 if (attackRoll - Math.floor((caster.str - 10) / 2) === 20) { // Natural 20
                     let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2) + 2) * damageMultiplier;
+                    if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                        dmg = Math.floor(dmg / 2);
+                        addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                    }
                     target.currentHp -= dmg;
                     addLog(`💥 <b>${caster.name}</b> (CRIT) hits <b>${target.name}</b> for <b>${dmg}</b> damage!`);
                 } else if (attackRoll >= targetAC) {
                     let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2)) * damageMultiplier;
+                    if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
+                        dmg = Math.floor(dmg / 2);
+                        addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
+                    }
                     target.currentHp -= dmg;
                     addLog(`🗡️ <b>${caster.name}</b> hits <b>${target.name}</b> for <b>${dmg}</b> damage.`);
                 } else {
@@ -1826,6 +1329,210 @@ function partyCombat(enemyGroup, nextScene) {
     setTimeout(nextTurn, 1200);
 }
 
+// --- NEW: Level Up System Functions ---
+function levelUpParty(nextSceneCallback) {
+    // Clear story image during level up
+    storyImage.style.display = 'none';
+    storyImage.src = '';
+
+    party.forEach(member => { // Iterate through all party members
+        member.level++; // Increment level for everyone
+        member.availableStatPoints += 2; // Award 2 stat points to all party members
+        // For simplicity, auto-distribute for non-player characters here
+        if (member.name !== player.name) {
+            if (member.availableStatPoints > 0) {
+                member.str++;
+                member.availableStatPoints--;
+            }
+            if (member.availableStatPoints > 0) {
+                member.dex++;
+                member.availableStatPoints--;
+            }
+        }
+    });
+
+    // Player gets an additional point for manual distribution, making it 3 total
+    player.availableStatPoints += 1; // Player gets 2 + 1 = 3 points to distribute manually
+
+    showDialogue({ name: "System", icon: "✨", portraitUrl: "images/narrator.png" }, `
+        <h2 style="color:#2ecc40;text-align:center;">🎉 Congratulations! 🎉</h2>
+        <p style="text-align:center;font-size:1.2em;">Your party has reached Level ${player.level}!</p>
+        <p style="text-align:center;">Click 'Continue' to distribute stat points and learn new skills.</p>
+    `);
+    optionsDiv.innerHTML = `<button onclick="proceedToLevelUpScreen('${nextSceneCallback.name}')">Continue</button>`;
+}
+
+window.proceedToLevelUpScreen = function(nextSceneName) {
+    const nextSceneCallback = window[nextSceneName]; // Get function reference from its name
+
+    let levelUpHtml = `
+        <h2 style="color:#2ecc40;text-align:center;">Level Up! (Level ${player.level})</h2>
+        <p>Distribute ${player.availableStatPoints} stat points for ${player.name}:</p>
+        <div id="stat-distribution" style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Strength (STR): ${player.str}</span>
+                <button onclick="addStatPoint('str')">+</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Dexterity (DEX): ${player.dex}</span>
+                <button onclick="addStatPoint('dex')">+</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Intelligence (INT): ${player.int}</span>
+                <button onclick="addStatPoint('int')">+</button>
+            </div>
+        </div>
+        <p>Each party member gained 1d8 HP!</p>
+        <div id="hp-roll-results"></div>
+        <p>New skills learned by your party:</p>
+        <ul id="new-skills-list"></ul>
+        <button id="confirmLevelUpBtn" onclick="confirmLevelUp('${nextSceneName}')">Confirm Level Up</button>
+    `;
+    storyDiv.innerHTML = levelUpHtml;
+    optionsDiv.innerHTML = ''; // Clear options during level up
+
+    // Roll HP for all party members
+    let hpRollResults = '';
+    party.forEach(member => {
+        const hpGain = rollDice(8);
+        member.maxHp += hpGain;
+        member.hp = member.maxHp; // Heal to full on level up
+        hpRollResults += `<p>${member.name} gained ${hpGain} HP! (New Max HP: ${member.maxHp})</p>`;
+    });
+    document.getElementById('hp-roll-results').innerHTML = hpRollResults;
+
+    // Discover new skills for each party member
+    let newSkillsHtml = '';
+    party.forEach(member => {
+        const newlyLearnedSkills = Object.values(gameSkills).filter(skill =>
+            skill.class === member.class && skill.level === member.level && !member.knownSkills.includes(skill.name)
+        );
+        if (newlyLearnedSkills.length > 0) {
+            newSkillsHtml += `<li><b>${member.name} (${member.class}):</b>`;
+            newlyLearnedSkills.forEach(skill => {
+                member.knownSkills.push(skill.name);
+                newSkillsHtml += ` <i>${skill.name}</i> (${skill.description})`;
+            });
+            newSkillsHtml += `</li>`;
+        }
+    });
+    document.getElementById('new-skills-list').innerHTML = newSkillsHtml || '<li>No new skills this level.</li>';
+
+    renderCharacterSheet(); // Update character sheet with new HP
+    updateSidebar(); // Update sidebar to reflect level and new skill options
+};
+
+window.addStatPoint = function(stat) {
+    if (player.availableStatPoints > 0) {
+        player[stat]++;
+        player.availableStatPoints--;
+        // Re-render the stat distribution section
+        document.getElementById('stat-distribution').innerHTML = `
+            <p>Distribute ${player.availableStatPoints} stat points for ${player.name}:</p>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Strength (STR): ${player.str}</span>
+                    <button onclick="addStatPoint('str')">+</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Dexterity (DEX): ${player.dex}</span>
+                    <button onclick="addStatPoint('dex')">+</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Intelligence (INT): ${player.int}</span>
+                    <button onclick="addStatPoint('int')">+</button>
+                </div>
+            </div>
+        `;
+        renderCharacterSheet(); // Update char sheet to show new stats
+    }
+    // Disable button if no points left
+    if (player.availableStatPoints === 0) {
+        document.querySelectorAll('#stat-distribution button').forEach(btn => btn.disabled = true);
+    }
+};
+
+window.confirmLevelUp = function(nextSceneName) {
+    // Ensure all stat points are distributed (optional, could force it)
+    if (player.availableStatPoints > 0) {
+        showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, "Please distribute all your stat points before continuing.");
+        return;
+    }
+
+    // Auto-equip skills if activeSkills array is less than 2
+    party.forEach(member => {
+        if (member.activeSkills.length < 2) {
+            member.knownSkills.forEach(skillName => {
+                if (!member.activeSkills.includes(skillName) && member.activeSkills.length < 2) {
+                    member.activeSkills.push(skillName);
+                }
+            });
+        }
+    });
+
+    updateSidebar(); // Final update after all changes
+    const nextSceneCallback = window[nextSceneName];
+    if (typeof nextSceneCallback === "function") {
+        nextSceneCallback();
+    } else {
+        // Fallback if nextSceneCallback is not found
+        showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, "Level up complete. Proceeding with the adventure!");
+        waitForContinue(mainGameStart); // Or a default scene
+    }
+};
+
+// --- NEW: Render Skill Selection in Sidebar ---
+function renderSkillSelection() {
+    if (!skillSelectionDiv || !player) return;
+
+    let html = `<h3>Active Combat Skills (Max 2)</h3>`;
+    party.forEach(member => {
+        html += `<h4>${member.name} (${member.class})</h4>`;
+        if (member.knownSkills.length === 0) {
+            html += `<p>No skills learned yet.</p>`;
+        } else {
+            html += `<div style="display:flex; flex-wrap:wrap; gap:5px;">`;
+            member.knownSkills.forEach(skillName => {
+                const skill = gameSkills[skillName];
+                if (skill) {
+                    const isActive = member.activeSkills.includes(skillName);
+                    html += `
+                        <button
+                            class="skill-toggle-btn ${isActive ? 'active' : ''}"
+                            onclick="toggleActiveSkill('${member.name}', '${skillName}')"
+                            title="${skill.description}"
+                        >
+                            ${skill.name}
+                        </button>
+                    `;
+                }
+            });
+            html += `</div>`;
+        }
+    });
+    skillSelectionDiv.innerHTML = html;
+}
+
+window.toggleActiveSkill = function(memberName, skillName) {
+    const member = party.find(m => m.name === memberName);
+    if (!member) return;
+
+    const index = member.activeSkills.indexOf(skillName);
+    if (index > -1) {
+        // Skill is active, deactivate it
+        member.activeSkills.splice(index, 1);
+    } else {
+        // Skill is not active, activate it if space available
+        if (member.activeSkills.length < 2) {
+            member.activeSkills.push(skillName);
+        } else {
+            showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, `${member.name} can only have 2 active skills at a time.`);
+        }
+    }
+    renderSkillSelection(); // Re-render to update buttons
+};
+
+
 // --- Weather & Encounter System ---
 function rollWeather() {
     const roll = rollDice(20);
@@ -1836,7 +1543,8 @@ function rollWeather() {
         weather = "☁️ Overcast and gloomy weather hangs overhead.";
     } else if (roll <= 15) {
         weather = "⛅ Warm weather with a few clouds in the distance.";
-    } else {
+    }
+    else {
         weather = "🌞 Perfect weather: clear skies and a gentle breeze.";
     }
     return { roll, weather };
@@ -1851,6 +1559,10 @@ function rollEncounter() {
             const available = allPartyMembers.filter(m => !party.some(p => p.name === m.name)); // Use allPartyMembers here
             if (available.length > 0) {
                 const newComp = available[Math.floor(Math.random() * available.length)];
+                // Initialize new member's level, skills based on player's current level
+                newComp.level = player.level;
+                newComp.knownSkills = getSkillsForClassAndLevel(newComp.class, newComp.level);
+                newComp.activeSkills = newComp.knownSkills.slice(0, 2); // Auto-equip first two skills
                 party.push(newComp);
                 encounter = `✨ You meet a new companion: ${newComp.icon} <b>${newComp.name}</b> joins your party!`;
                 effect = () => renderCharacterSheet();
@@ -2117,7 +1829,7 @@ function firstVision() {
     );
     showOptions([
         {
-            text: "Swear an oath to help",
+            text: "Swear an oath to help ✨",
             action: () => {
                 showDialogue(player, "You awaken with resolve. The village of Greenhollow is in danger. You set out at dawn.");
                 // This is a narrative event, not a new area.
@@ -2125,7 +1837,7 @@ function firstVision() {
             }
         },
         {
-            text: "Ignore the vision",
+            text: "Ignore the vision 😴",
             action: () => {
                 showDialogue(player, "You try to ignore the vision, but guilt gnaws at you. At sunrise, you decide to help after all.");
                 // This is a narrative event, not a new area.
@@ -2150,7 +1862,7 @@ function roadEncounter() {
                 dc: 13,
                 success: () => {
                     showDialogue(player, "The guards, surprised by your honesty, let you pass but warn you to behave.");
-                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
+                    waitForContinue(() => moveToArea("Greenhollow Village", greenhollowArrival)); // Rolls for weather/encounter when arriving at Greenhollow
                 },
                 fail: () => {
                     showDialogue(player, "The guards don't trust you and demand a bribe. You prepare for a fight.");
@@ -2182,11 +1894,7 @@ function roadEncounter() {
                             goldReward: 25, // Specific reward for this combat
                             onDefeat: () => {
                                 showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "You defeat the guards and continue your journey.");
-                                optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
-                                document.getElementById('combatContinueBtn').onclick = () => {
-                                    optionsDiv.innerHTML = "";
-                                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
-                                };
+                                waitForContinue(() => moveToArea("Greenhollow Village", greenhollowArrival)); // Rolls for weather/encounter when arriving at Greenhollow
                             }
                         });
                     });
@@ -2200,7 +1908,7 @@ function roadEncounter() {
                 dc: 15,
                 success: () => {
                     showDialogue(player, "Your presence is enough to make the guards back down. You continue on your way.");
-                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
+                    waitForContinue(() => moveToArea("Greenhollow Village", greenhollowArrival)); // Rolls for weather/encounter when arriving at Greenhollow
                 },
                 fail: () => {
                     showDialogue(player, "The guards attack! You prepare for a fight.");
@@ -2232,11 +1940,7 @@ function roadEncounter() {
                             goldReward: 25,
                             onDefeat: () => {
                                 showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "You defeat the guards and continue your journey.");
-                                optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
-                                document.getElementById('combatContinueBtn').onclick = () => {
-                                    optionsDiv.innerHTML = "";
-                                    moveToArea("Greenhollow Village", greenhollowArrival); // Rolls for weather/encounter when arriving at Greenhollow
-                                };
+                                waitForContinue(() => moveToArea("Greenhollow Village", greenhollowArrival)); // Rolls for weather/encounter when arriving at Greenhollow
                             }
                         });
                     });
@@ -2255,7 +1959,7 @@ function greenhollowArrival() {
     );
     showOptions([
         {
-            text: "Rush into the flames �",
+            text: "Rush into the flames 🔥",
             diceCheck: {
                 prompt: "Roll to brave the fire (STR check, DC 14)",
                 dc: 14,
@@ -2369,7 +2073,7 @@ function redemption() {
             }
         },
         {
-            text: "Humbly refuse",
+            text: "Humbly refuse 🚶",
             action: () => {
                 showDialogue(player, "You thank the priest, but say your deeds are their own reward.");
                 // ADVANCE DAY WITHIN THE SAME AREA
@@ -2414,12 +2118,10 @@ function finalBattle() {
         itemReward: {name: "Demon Heartstone", quantity: 1, icon: "❤️‍🔥"},
         onDefeat: () => {
             showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" }, "Your party defeats the demon! The village is saved and you are hailed as a true paladin!");
-            optionsDiv.innerHTML = `<button id="combatContinueBtn">Continue</button>`;
-            document.getElementById('combatContinueBtn').onclick = () => {
-                optionsDiv.innerHTML = "";
+            waitForContinue(() => {
                 // Level Up 1 after saving Greenhollow
                 levelUpParty(newChapterTown);
-            };
+            });
         }
     });
 }
@@ -2545,12 +2247,10 @@ function sewerBattle() {
                 { name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
                 "You defeat the monsters and rescue the missing townsfolk. The mayor is overjoyed!"
             );
-            optionsDiv.innerHTML = `<button id="chapterContinueBtn">Continue</button>`;
-            document.getElementById('chapterContinueBtn').onclick = () => {
-                optionsDiv.innerHTML = "";
+            waitForContinue(() => {
                 // Level Up 2 after saving Silverbrook
                 levelUpParty(newCompanionJoins);
-            };
+            });
         }
     });
 }
@@ -2809,12 +2509,11 @@ function forestEvent() {
                 if (roll >= 11) {
                     showDialogue(player, "You skillfully gather valuable herbs and berries.");
                     rewardParty(5, {name: "Wild Berries", quantity: 3, icon: "🍓"});
-                    waitForContinue(whisperingWoodsDay);
                 } else {
                     showDialogue(player, "You struggle to find anything useful, or the herbs turn out to be poisonous.");
                     showDialogue({ name: "System", icon: "⚙️" }, "You gain nothing useful.");
-                    waitForContinue(whisperingWoodsDay);
                 }
+                waitForContinue(whisperingWoodsDay); // Ensure continue after dice roll
             });
         };
         window.ignoreResources = function() {
@@ -2842,11 +2541,9 @@ function cryptEncounter() {
             showDialogue({ name: "Narrator", icon: "📜", portraitUrl: "images/narrator.png" },
                 "The crypt is silent once more. You find some valuables among the dust."
             );
-            optionsDiv.innerHTML = `<button id="continueCryptBtn">Continue searching</button>`;
-            document.getElementById('continueCryptBtn').onclick = () => {
-                optionsDiv.innerHTML = "";
+            waitForContinue(() => { // Ensure continue after combat
                 findCryptTreasure();
-            };
+            });
         }
     });
 }
@@ -2867,11 +2564,10 @@ function findCryptTreasure() {
             if (roll >= 13) {
                 showDialogue(player, "You manage to open the chest!");
                 rewardParty(50, {name: "Silver Locket", quantity: 1, icon: "📿"});
-                waitForContinue(whisperingWoodsDay);
             } else {
                 showDialogue(player, "The chest's lock is sturdy, or you lack the right tools. It won't budge.");
-                waitForContinue(whisperingWoodsDay);
             }
+            waitForContinue(whisperingWoodsDay); // Ensure continue after dice roll
         });
     };
     window.leaveCrypt = function() {
@@ -3002,11 +2698,9 @@ function cultistLair() {
                 "The cultists are defeated! You have saved the missing townsfolk and brought peace to Goldenspire.",
                 "images/cultistsdefeated.png" // Image for cultists defeated
             );
-            optionsDiv.innerHTML = `<button id="chapterEndBtn">Conclude Chapter</button>`;
-            document.getElementById('chapterEndBtn').onclick = () => {
-                optionsDiv.innerHTML = "";
+            waitForContinue(() => { // Ensure continue after combat
                 endGame("victory"); // End the game with a victory
-            };
+            });
         }
     });
 }
