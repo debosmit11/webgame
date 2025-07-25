@@ -1,10 +1,10 @@
 // --- Game Data ---
 const allPartyMembers = [
-    { name: "Brother Aldous", class: "Human Cleric", str: 10, dex: 10, int: 16, hp: 18, maxHp: 18, icon: "⛪", portraitUrl: "images/mhum1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
-    { name: "Sister Mira", class: "Elf Ranger", str: 12, dex: 16, int: 12, hp: 20, maxHp: 20, icon: "🏹", portraitUrl: "images/felf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
-    { name: "Durgan", class: "Dwarf Fighter", str: 16, dex: 10, int: 8, hp: 24, maxHp: 24, icon: "🛡️", portraitUrl: "images/mdwrf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
-    { name: "Tikka", class: "Halfling Rogue", str: 9, dex: 18, int: 13, hp: 16, maxHp: 16, icon: "🗡️", portraitUrl: "images/mhlf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
-    { name: "Eldra", class: "Half-Elf Sorcerer", str: 8, dex: 12, int: 18, hp: 15, maxHp: 15, icon: "✨", portraitUrl: "images/fhelf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] }
+    { name: "Brother Aldous", class: "Human Cleric", str: 10, dex: 10, con: 12, int: 16, wis: 14, cha: 10, hp: 18, maxHp: 18, icon: "⛪", portraitUrl: "images/mhum1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
+    { name: "Sister Mira", class: "Elf Ranger", str: 12, dex: 16, con: 10, int: 12, wis: 13, cha: 10, hp: 20, maxHp: 20, icon: "🏹", portraitUrl: "images/felf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
+    { name: "Durgan", class: "Dwarf Fighter", str: 16, dex: 10, con: 14, int: 8, wis: 10, cha: 8, hp: 24, maxHp: 24, icon: "🛡️", portraitUrl: "images/mdwrf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
+    { name: "Tikka", class: "Halfling Rogue", str: 9, dex: 18, con: 10, int: 13, wis: 11, cha: 12, hp: 16, maxHp: 16, icon: "🗡️", portraitUrl: "images/mhlf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] },
+    { name: "Eldra", class: "Half-Elf Sorcerer", str: 8, dex: 12, con: 10, int: 18, wis: 10, cha: 14, hp: 15, maxHp: 15, icon: "✨", portraitUrl: "images/fhelf1.png", level: 0, availableStatPoints: 0, knownSkills: [], activeSkills: [] }
 ];
 
 let player = null;
@@ -404,7 +404,7 @@ function renderCharacterSheet() {
             </div>
             <div>
                 <strong>${member.name}</strong> (${member.class}) Lv.${member.level}<br>
-                STR: ${member.str} | DEX: ${member.dex} | INT: ${member.int} | HP: <span class="hp-text ${member.hp <= member.maxHp / 4 ? 'low-hp' : ''}">${member.hp}</span>/${member.maxHp}
+                STR: ${member.str} | DEX: ${member.dex} | CON: ${member.con} | INT: ${member.int} | WIS: ${member.wis} | CHA: ${member.cha} | HP: <span class="hp-text ${member.hp <= member.maxHp / 4 ? 'low-hp' : ''}">${member.hp}</span>/${member.maxHp}
             </div>
         </div>
     `).join('');
@@ -891,7 +891,7 @@ function partyCombat(enemyGroup, nextScene) {
         shieldOfFaithTurns: 0,
         courageAuraTurns: 0,
         huntersMarkTurns: 0,
-        shadowStepActive: false,
+        shadowStepActive: false, // Flag for Rogue's Shadow Step bonus
         vanishTurns: 0,
         // For enemies
         shadowBindTurns: 0
@@ -927,10 +927,8 @@ function partyCombat(enemyGroup, nextScene) {
     let allCombatants = [...partyCombatants, ...enemyCombatants];
     allCombatants.forEach(c => {
         let dexMod = Math.floor((c.dex || 10) / 2);
-        // Apply Aura of Courage bonus if active
-        if (c.side === "party" && c.courageAuraTurns > 0) {
-            dexMod += 2; // Courage Aura adds to attack rolls, not initiative, but we can simulate it here for simplicity
-        }
+        // Apply Aura of Courage bonus if active (This should apply to attack rolls, not initiative)
+        // For now, removing this from initiative calculation to keep it simple and accurate to D&D rules.
         c.initiative = rollDice(20) + dexMod;
     });
     allCombatants.sort((a, b) => b.initiative - a.initiative);
@@ -1012,7 +1010,6 @@ function partyCombat(enemyGroup, nextScene) {
                 setTimeout(showDeathScreen, 1200);
             }, 1200);
             inCombat = false;
-            // ... inside checkCombatEnd, inside combat lost block ...
             isInCombat = false; // End combat state
             currentCombatResumeFunction = null; // Clear resume function
             return true;
@@ -1067,7 +1064,6 @@ function partyCombat(enemyGroup, nextScene) {
                 };
             }, 1200);
             inCombat = false;
-            // ... inside checkCombatEnd, inside combat won block ...
             isInCombat = false; // End combat state
             currentCombatResumeFunction = null; // Clear resume function
             return true;
@@ -1106,6 +1102,14 @@ function partyCombat(enemyGroup, nextScene) {
             desc: "Attack a foe with your weapon.",
             type: "attack",
             effect: (caster, target, addLog, partyCombatants, enemyCombatants, damageMultiplier = 1) => {
+                // NEW: Shadow Step bonus for Rogue's attack
+                let shadowStepBonus = 0;
+                if (caster.side === "party" && caster.class === "Halfling Rogue" && caster.shadowStepActive) {
+                    shadowStepBonus = 5; // Example bonus damage
+                    caster.shadowStepActive = false; // Consume Shadow Step
+                    addLog(`💨 <b>${caster.name}</b> strikes from the shadows!`);
+                }
+
                 let attackRoll = rollDice(20) + Math.floor((caster.str - 10) / 2);
                 let targetAC = 10 + Math.floor(((target.dex || 10) - 10) / 2);
                 if (target.shieldOfFaithTurns > 0) { // Shield of Faith AC bonus
@@ -1121,7 +1125,7 @@ function partyCombat(enemyGroup, nextScene) {
                 }
 
                 if (attackRoll - Math.floor((caster.str - 10) / 2) === 20) { // Natural 20
-                    let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2) + 2) * damageMultiplier;
+                    let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2) + 2 + shadowStepBonus) * damageMultiplier; // Add shadowStepBonus here
                     if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
                         dmg = Math.floor(dmg / 2);
                         addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
@@ -1129,7 +1133,7 @@ function partyCombat(enemyGroup, nextScene) {
                     target.currentHp -= dmg;
                     addLog(`💥 <b>${caster.name}</b> (CRIT) hits <b>${target.name}</b> for <b>${dmg}</b> damage!`);
                 } else if (attackRoll >= targetAC) {
-                    let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2)) * damageMultiplier;
+                    let dmg = (rollDice(8) + Math.floor((caster.str - 10) / 2) + shadowStepBonus) * damageMultiplier; // Add shadowStepBonus here
                     if (target.sanctuaryTurns > 0 && target.side === "party") { // Sanctuary check
                         dmg = Math.floor(dmg / 2);
                         addLog(`🛡️ <b>${target.name}</b>'s Sanctuary halves the damage!`);
@@ -1190,7 +1194,10 @@ function partyCombat(enemyGroup, nextScene) {
                     addLog(`✨ <b>${c.name}</b> emerges from Vanish.`);
                 }
             }
-            if (c.shadowStepActive) { // Shadow step is consumed on next attack or end of turn if no attack
+            // ShadowStepActive is now consumed in the attack effect itself, or at end of turn if no attack
+            if (c.shadowStepActive && c.side === "party" && c.class === "Halfling Rogue") {
+                // If Rogue had Shadow Step active but didn't attack, it expires
+                addLog(`💨 <b>${c.name}</b>'s Shadow Step fades.`);
                 c.shadowStepActive = false;
             }
         });
@@ -1224,46 +1231,7 @@ function partyCombat(enemyGroup, nextScene) {
             ).join(' ');
             optionsDiv.innerHTML = `<div><b>Choose action:</b> ${actionButtons}</div>`;
 
-            window.chooseCombatAction = function(actionIdx) {
-                optionsDiv.innerHTML = "";
-                let action = actions[actionIdx];
-                let targets = [];
-
-                if (action.targetSide === "party") {
-                    targets = getAlive("party");
-                } else if (action.targetSide === "enemy") {
-                    targets = getAlive("enemy");
-                } else { // Default targeting
-                    targets = current.side === "party" ? getAlive("enemy") : getAlive("party");
-                }
-
-                if (action.type === "attack_aoe" || action.type === "attack_multi" || action.type === "heal_aoe") {
-                    // AOE/Multi-target skills don't need specific target selection UI
-                    action.effect(current, targets, addLog); // Pass all relevant targets
-                    if (checkCombatEnd()) return;
-                    turnIndex++;
-                    setTimeout(nextTurn, 800);
-                }
-                else if (targets.length === 1) {
-                    action.effect(current, targets[0], addLog);
-                    if (checkCombatEnd()) return;
-                    turnIndex++;
-                    setTimeout(nextTurn, 800);
-                } else {
-                    optionsDiv.innerHTML = `<div><b>Choose target:</b> ${
-                        targets.map((t, j) =>
-                            `<button onclick="doCombatAction(${actionIdx},${j})">${t.name}</button>`
-                        ).join(' ')
-                    }</div>`;
-                    window.doCombatAction = function(aIdx, tIdx) {
-                        optionsDiv.innerHTML = "";
-                        actions[aIdx].effect(current, targets[tIdx], addLog);
-                        if (checkCombatEnd()) return;
-                        turnIndex++;
-                        setTimeout(nextTurn, 800);
-                    };
-                }
-            };
+            // chooseCombatAction and doCombatAction are now global, defined below nextTurn
         }
         else if (current.side === "enemy" && current.currentHp > 0) {
             // Check if enemy is vanished (e.g., if a rogue used Vanish on them)
@@ -1274,7 +1242,11 @@ function partyCombat(enemyGroup, nextScene) {
                 return;
             }
 
-            // Shield effect for Fighter: nullifies next enemy attack
+            // Shield effect for Fighter: nullifies next enemy attack (This logic needs to be tied to a skill)
+            // The existing 'shielded' property is not being set by any skill.
+            // If this was intended for a skill like a Fighter's 'Block', it needs to be implemented.
+            // For now, I'm assuming 'shielded' is not actively used.
+            /*
             let shieldedMember = partyCombatants.find(m => m.shielded);
             if (shieldedMember) {
                 addLog(`🛡️ <b>${shieldedMember.name}</b>'s Shield nullifies the enemy attack!`);
@@ -1283,6 +1255,8 @@ function partyCombat(enemyGroup, nextScene) {
                 setTimeout(nextTurn, 800);
                 return;
             }
+            */
+
             addLog(`<b style="color:#fff;">${current.name}'s turn!</b>`);
             renderCombat();
             let actions = getAvailableActions(current);
@@ -1297,9 +1271,9 @@ function partyCombat(enemyGroup, nextScene) {
                 targets = getAlive("party");
             }
 
-            // Filter out untargetable party members (e.g., from Shadow Step)
+            // Filter out untargetable party members (e.g., from Shadow Step or Vanish)
             if (action.type.startsWith("attack")) {
-                targets = targets.filter(t => !t.shadowStepActive);
+                targets = targets.filter(t => !t.shadowStepActive && !t.vanishTurns > 0);
                 if (targets.length === 0) { // No valid targets, enemy skips turn
                     addLog(`<b>${current.name}</b> has no valid targets and skips its turn.`);
                     turnIndex++;
@@ -1307,7 +1281,6 @@ function partyCombat(enemyGroup, nextScene) {
                     return;
                 }
             }
-
 
             let target = targets[Math.floor(Math.random() * targets.length)]; // Enemy picks a random target
             setTimeout(() => {
@@ -1323,6 +1296,63 @@ function partyCombat(enemyGroup, nextScene) {
         }
     }
 
+    // Global functions for combat actions to avoid redefinition issues
+    window.chooseCombatAction = function(actionIdx) {
+        const current = turnOrder[turnIndex];
+        let actions = getAvailableActions(current);
+        let action = actions[actionIdx];
+        let targets = [];
+
+        if (action.targetSide === "party") {
+            targets = getAlive("party");
+        } else if (action.targetSide === "enemy") {
+            targets = getAlive("enemy");
+        } else { // Default targeting
+            targets = current.side === "party" ? getAlive("enemy") : getAlive("party");
+        }
+
+        if (action.type === "attack_aoe" || action.type === "attack_multi" || action.type === "heal_aoe" || targets.length === 0) {
+            // AOE/Multi-target skills or no targets, don't need specific target selection UI
+            optionsDiv.innerHTML = ""; // Clear options immediately
+            action.effect(current, targets, addLog, partyCombatants, enemyCombatants); // Pass all relevant targets
+            if (checkCombatEnd()) return;
+            turnIndex++;
+            setTimeout(nextTurn, 800);
+        } else if (targets.length === 1) {
+            optionsDiv.innerHTML = ""; // Clear options immediately
+            action.effect(current, targets[0], addLog, partyCombatants, enemyCombatants);
+            if (checkCombatEnd()) return;
+            turnIndex++;
+            setTimeout(nextTurn, 800);
+        } else {
+            // Multiple targets, prompt for selection
+            optionsDiv.innerHTML = `<div><b>Choose target:</b> ${
+                targets.map((t, j) =>
+                    `<button onclick="doCombatAction(${actionIdx},${j}, '${t.side}')">${t.name}</button>`
+                ).join(' ')
+            }</div>`;
+        }
+    };
+
+    window.doCombatAction = function(aIdx, tIdx, targetSide) {
+        optionsDiv.innerHTML = ""; // Clear options immediately
+        const current = turnOrder[turnIndex];
+        let actions = getAvailableActions(current);
+        let action = actions[aIdx];
+
+        let targets;
+        if (targetSide === "party") {
+            targets = getAlive("party");
+        } else { // Assume enemy if not explicitly party
+            targets = getAlive("enemy");
+        }
+
+        action.effect(current, targets[tIdx], addLog, partyCombatants, enemyCombatants);
+        if (checkCombatEnd()) return;
+        turnIndex++;
+        setTimeout(nextTurn, 800);
+    };
+
     addLog(`<i>Party initiative: ${partyInit}, Enemy initiative: ${enemyInit}</i>`);
     addLog(`<i>Initiative order: ${turnOrder.map(c => c.name).join(", ")}</i>`);
     renderCombat();
@@ -1337,33 +1367,48 @@ function levelUpParty(nextSceneCallback) {
 
     party.forEach(member => { // Iterate through all party members
         member.level++; // Increment level for everyone
-        member.availableStatPoints += 2; // Award 2 stat points to all party members
-        // For simplicity, auto-distribute for non-player characters here
+        member.availableStatPoints += 3; // Award 3 stat points to all party members
+
+        // Auto-distribute for non-player characters
         if (member.name !== player.name) {
-            if (member.availableStatPoints > 0) {
-                member.str++;
-                member.availableStatPoints--;
-            }
-            if (member.availableStatPoints > 0) {
-                member.dex++;
-                member.availableStatPoints--;
+            const statsToDistribute = ["str", "dex", "con", "int", "wis", "cha"];
+            for (let i = 0; i < 3; i++) { // Distribute 3 points
+                if (member.availableStatPoints > 0) {
+                    const randomStat = statsToDistribute[Math.floor(Math.random() * statsToDistribute.length)];
+                    member[randomStat]++;
+                    member.availableStatPoints--;
+                }
             }
         }
-    });
+        // Discover new skills for each party member
+        const newlyLearnedSkills = Object.values(gameSkills).filter(skill =>
+            skill.class === member.class && skill.level === member.level && !member.knownSkills.includes(skill.name)
+        );
+        newlyLearnedSkills.forEach(skill => {
+            member.knownSkills.push(skill.name);
+            // Auto-equip new skills if there's space
+            if (member.activeSkills.length < 2 && !member.activeSkills.includes(skill.name)) {
+                member.activeSkills.push(skill.name);
+            }
+        });
 
-    // Player gets an additional point for manual distribution, making it 3 total
-    player.availableStatPoints += 1; // Player gets 2 + 1 = 3 points to distribute manually
+        // Roll HP for all party members
+        const hpGain = rollDice(8);
+        member.maxHp += hpGain;
+        member.hp = member.maxHp; // Heal to full on level up
+    });
 
     showDialogue({ name: "System", icon: "✨", portraitUrl: "images/narrator.png" }, `
         <h2 style="color:#2ecc40;text-align:center;">🎉 Congratulations! 🎉</h2>
         <p style="text-align:center;font-size:1.2em;">Your party has reached Level ${player.level}!</p>
-        <p style="text-align:center;">Click 'Continue' to distribute stat points and learn new skills.</p>
+        <p style="text-align:center;">Click 'Continue' to distribute stat points for ${player.name} and see new skills.</p>
     `);
     optionsDiv.innerHTML = `<button onclick="proceedToLevelUpScreen('${nextSceneCallback.name}')">Continue</button>`;
 }
 
 window.proceedToLevelUpScreen = function(nextSceneName) {
-    const nextSceneCallback = window[nextSceneName]; // Get function reference from its name
+    // This function is primarily for the player's manual stat distribution and displaying overall level up summary.
+    // NPC stats and skills are already handled in levelUpParty.
 
     let levelUpHtml = `
         <h2 style="color:#2ecc40;text-align:center;">Level Up! (Level ${player.level})</h2>
@@ -1378,39 +1423,38 @@ window.proceedToLevelUpScreen = function(nextSceneName) {
                 <button onclick="addStatPoint('dex')">+</button>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Constitution (CON): ${player.con}</span>
+                <button onclick="addStatPoint('con')">+</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span>Intelligence (INT): ${player.int}</span>
                 <button onclick="addStatPoint('int')">+</button>
             </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Wisdom (WIS): ${player.wis}</span>
+                <button onclick="addStatPoint('wis')">+</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Charisma (CHA): ${player.cha}</span>
+                <button onclick="addStatPoint('cha')">+</button>
+            </div>
         </div>
-        <p>Each party member gained 1d8 HP!</p>
-        <div id="hp-roll-results"></div>
-        <p>New skills learned by your party:</p>
+        <p>All party members gained HP and may have learned new skills!</p>
         <ul id="new-skills-list"></ul>
         <button id="confirmLevelUpBtn" onclick="confirmLevelUp('${nextSceneName}')">Confirm Level Up</button>
     `;
     storyDiv.innerHTML = levelUpHtml;
     optionsDiv.innerHTML = ''; // Clear options during level up
 
-    // Roll HP for all party members
-    let hpRollResults = '';
-    party.forEach(member => {
-        const hpGain = rollDice(8);
-        member.maxHp += hpGain;
-        member.hp = member.maxHp; // Heal to full on level up
-        hpRollResults += `<p>${member.name} gained ${hpGain} HP! (New Max HP: ${member.maxHp})</p>`;
-    });
-    document.getElementById('hp-roll-results').innerHTML = hpRollResults;
-
-    // Discover new skills for each party member
+    // Display newly learned skills for all party members
     let newSkillsHtml = '';
     party.forEach(member => {
         const newlyLearnedSkills = Object.values(gameSkills).filter(skill =>
-            skill.class === member.class && skill.level === member.level && !member.knownSkills.includes(skill.name)
+            skill.class === member.class && skill.level === member.level && member.knownSkills.includes(skill.name) // Check if already known
         );
         if (newlyLearnedSkills.length > 0) {
             newSkillsHtml += `<li><b>${member.name} (${member.class}):</b>`;
             newlyLearnedSkills.forEach(skill => {
-                member.knownSkills.push(skill.name);
                 newSkillsHtml += ` <i>${skill.name}</i> (${skill.description})`;
             });
             newSkillsHtml += `</li>`;
@@ -1418,7 +1462,7 @@ window.proceedToLevelUpScreen = function(nextSceneName) {
     });
     document.getElementById('new-skills-list').innerHTML = newSkillsHtml || '<li>No new skills this level.</li>';
 
-    renderCharacterSheet(); // Update character sheet with new HP
+    renderCharacterSheet(); // Update character sheet with new HP and stats
     updateSidebar(); // Update sidebar to reflect level and new skill options
 };
 
@@ -1439,8 +1483,20 @@ window.addStatPoint = function(stat) {
                     <button onclick="addStatPoint('dex')">+</button>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Constitution (CON): ${player.con}</span>
+                    <button onclick="addStatPoint('con')">+</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span>Intelligence (INT): ${player.int}</span>
                     <button onclick="addStatPoint('int')">+</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Wisdom (WIS): ${player.wis}</span>
+                    <button onclick="addStatPoint('wis')">+</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Charisma (CHA): ${player.cha}</span>
+                    <button onclick="addStatPoint('cha')">+</button>
                 </div>
             </div>
         `;
@@ -1458,17 +1514,6 @@ window.confirmLevelUp = function(nextSceneName) {
         showDialogue({ name: "System", icon: "⚙️", portraitUrl: "images/narrator.png" }, "Please distribute all your stat points before continuing.");
         return;
     }
-
-    // Auto-equip skills if activeSkills array is less than 2
-    party.forEach(member => {
-        if (member.activeSkills.length < 2) {
-            member.knownSkills.forEach(skillName => {
-                if (!member.activeSkills.includes(skillName) && member.activeSkills.length < 2) {
-                    member.activeSkills.push(skillName);
-                }
-            });
-        }
-    });
 
     updateSidebar(); // Final update after all changes
     const nextSceneCallback = window[nextSceneName];
@@ -2267,7 +2312,10 @@ function newCompanionJoins() {
             class: "Human Bard",
             str: 8,
             dex: 14,
+            con: 10,
             int: 15,
+            wis: 13,
+            cha: 16,
             hp: 16,
             maxHp: 16,
             icon: "🎶",
